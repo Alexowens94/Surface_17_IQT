@@ -75,7 +75,7 @@ def insert_1q_error(qubit):
     if (2 * 1 / 3) < rand < (3 * 1 / 3):
         Z | qubit
 def x_type_entangling(dataq,ancillaq,s=1,p2q=0,p1q=0):
-    Rxx(s*pi/4) | (dataq,ancillaq)
+    Rxx(s*pi/2) | (dataq,ancillaq)  # diff in project q def vs New J. Phys. 20 (2018) 043038 ms(chi) def by factor of 2
     if random.random()<p2q:
         insert_2q_error(dataq,ancillaq)
     Rx(-s*pi/2) | dataq
@@ -86,7 +86,8 @@ def z_type_entangling(dataq,ancillaq,v=1,s=1,p2q=0,p1q=0):
     Ry(v*pi/2) | dataq
     if random.random()<p1q:
         insert_1q_error(dataq)
-    Rxx(s * pi / 4) | (dataq, ancillaq)
+    Rxx(s * pi / 2) | (dataq, ancillaq)# diff in project q def vs New J. Phys. 20 (2018) 043038 ms(chi) def by factor of 2
+
     if random.random()<p2q:
         insert_2q_error(dataq,ancillaq)
     Rx(-s * pi / 2) | dataq
@@ -100,111 +101,63 @@ def z_type_entangling_no_Rx(dataq,ancillaq,v=1,s=1,p2q=0,p1q=0):
     Ry(v*pi/2) | dataq
     if random.random()<p1q:
         insert_1q_error(dataq)
-    Rxx(s * pi / 4) | (dataq, ancillaq)
+    Rxx(s * pi / 2) | (dataq, ancillaq)# diff in project q def vs New J. Phys. 20 (2018) 043038 ms(chi) def by factor of 2
+
     if random.random()<p2q:
         insert_2q_error(dataq, ancillaq)
     Ry(-v * pi / 2) | dataq
     if random.random()<p1q:
         insert_1q_error(dataq)
 
+def x_type_entangling_no_Rx(dataq,ancillaq, v=1, s=1, p2q=0):
+    Rxx(-1*v*s*pi / 2) | (dataq, ancillaq)# angle dif by fac 2 in project q Rxx def
+    # vs New J. Phys. 20 (2018) 043038 ms(chi) def
+    if random.random() < p2q:
+        insert_2q_error(dataq, ancillaq)
+    # replace ent step with Rxx of correct sign, manually removing Rx that cancels
+    # (as project q doesnt recognise this cancels as it cant comm Rx and Rxx)
+
 def stabiliser_timestep_1(data,ancilla, old_order=False, p1q=0, p2q=0):
     if old_order:
         x_type_entangling(data[1], ancilla[1], s=1, p1q=p1q, p2q=p2q)
-        #x_type_entangling(data[3], ancilla[4], s=1)
-        Rxx(pi / 4) | (data[3], ancilla[4])
-        if random.random() < p2q:
-            insert_2q_error(data[3], ancilla[4])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
-        #x_type_entangling(data[5], ancilla[6], s=1)
-        Rxx(pi/4) | (data[5], ancilla[6])
-        if random.random() < p2q:
-            insert_2q_error(data[5], ancilla[6])
-    # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-    # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[3], ancilla[4], s=1, p2q=p2q)
+        x_type_entangling_no_Rx(data[5], ancilla[6], s=1, p2q=p2q)
+
     else:
-        #x_type_entangling(data[4], ancilla[1], s=1)
-        Rxx(pi / 4) | (data[4], ancilla[1])
-        if random.random() < p2q:
-            insert_2q_error(data[4], ancilla[1])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[4], ancilla[1], s=1, p2q=p2q)
         x_type_entangling(data[8], ancilla[6], s=1, p1q=p1q, p2q=p2q)
         x_type_entangling(data[6], ancilla[4], s=1, p1q=p1q, p2q=p2q)
 
 def stabiliser_timestep_2(data,ancilla, old_order=False, p1q=0, p2q=0):
     if old_order:
-        #x_type_entangling(data[4], ancilla[1], s=-1)
-        Rxx(-pi/4) | (data[4], ancilla[1])
-        if random.random() < p2q:
-            insert_2q_error(data[4], ancilla[1])
-    # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-    # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[4], ancilla[1], s=-1, p2q=p2q)
         x_type_entangling(data[6], ancilla[4], s=-1, p1q=p1q, p2q=p2q)
         x_type_entangling(data[8], ancilla[6], s=-1, p1q=p1q, p2q=p2q)
     else:
         x_type_entangling(data[1], ancilla[1], s=-1, p1q=p1q, p2q=p2q)
-        #x_type_entangling(data[5], ancilla[6], s=-1)
-        Rxx(-pi / 4) | (data[5], ancilla[6])
-        if random.random() < p2q:
-            insert_2q_error(data[5], ancilla[6])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
-        #x_type_entangling(data[3], ancilla[4], s=-1)
-        Rxx(-pi / 4) | (data[3], ancilla[4])
-        if random.random() < p2q:
-            insert_2q_error(data[3], ancilla[4])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[5], ancilla[6], s=-1, p2q=p2q)
+        x_type_entangling_no_Rx(data[3], ancilla[4], s=-1, p2q=p2q)
+
 
 def stabiliser_timestep_3(data,ancilla, old_order=False, p1q=0, p2q=0):
     if old_order:
-        x_type_entangling(data[0],ancilla[1], s=1, p1q=p1q, p2q=p2q)
-        #x_type_entangling(data[4],ancilla[6], s=1)
-        Rxx(pi / 4) | (data[4], ancilla[6])
-        if random.random() < p2q:
-            insert_2q_error(data[4], ancilla[6])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
-        x_type_entangling(data[2],ancilla[3], s=1, p1q=p1q, p2q=p2q)
+        x_type_entangling(data[0], ancilla[1], s=1, p1q=p1q, p2q=p2q)
+        x_type_entangling_no_Rx(data[4], ancilla[6], s=1, p2q=p2q)
+        x_type_entangling(data[2], ancilla[3], s=1, p1q=p1q, p2q=p2q)
     else:
-        #x_type_entangling(data[3], ancilla[1], s=1)
-        Rxx(pi / 4) | (data[3], ancilla[1])
-        if random.random() < p2q:
-            insert_2q_error(data[3], ancilla[1])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[3], ancilla[1], s=1, p2q=p2q)
         x_type_entangling(data[7], ancilla[6], s=1, p1q=p1q, p2q=p2q)
-        #x_type_entangling(data[5], ancilla[3], s=1)
-        Rxx(pi / 4) | (data[5], ancilla[3])
-        if random.random() < p2q:
-            insert_2q_error(data[5], ancilla[3])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[5], ancilla[3], s=1, p2q=p2q)
 
-def stabiliser_timestep_4(data,ancilla, old_order=False, p1q=0, p2q=0):
+
+def stabiliser_timestep_4(data, ancilla, old_order=False, p1q=0, p2q=0):
     if old_order:
-        #x_type_entangling(data[3],ancilla[1], s=-1)
-        Rxx(-pi / 4) | (data[3], ancilla[1])
-        if random.random() < p2q:
-            insert_2q_error(data[3], ancilla[1])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[3],ancilla[1], s=-1, p2q=p2q)
         x_type_entangling(data[7], ancilla[6], s=-1, p1q=p1q, p2q=p2q)
-        #x_type_entangling(data[5], ancilla[3], s=-1)
-        Rxx(-pi/4) | (data[5], ancilla[3])
-        if random.random() < p2q:
-            insert_2q_error(data[5], ancilla[3])
-    # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-    # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[5], ancilla[3], s=-1, p2q=p2q)
     else:
         x_type_entangling(data[0], ancilla[1], s=-1, p1q=p1q, p2q=p2q)
-        #x_type_entangling(data[4], ancilla[6], s=-1)
-        Rxx(-pi / 4) | (data[4], ancilla[6])
-        if random.random() < p2q:
-            insert_2q_error(data[4], ancilla[6])
-        # replace ent step with Rxx of correct sign, manually removing Rx that cancels
-        # (as project q doesnt recognise this cancels with z ent in step 4, as it cant comm Rx and Rxx)
+        x_type_entangling_no_Rx(data[4], ancilla[6], s=-1, p2q=p2q)
         x_type_entangling(data[2], ancilla[3], s=-1, p1q=p1q, p2q=p2q)
 def stabiliser_timestep_5(data,ancilla, old_order=False, p1q=0, p2q=0):
     if old_order:
