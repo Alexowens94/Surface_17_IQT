@@ -9,18 +9,21 @@ eng = MainEngine(Simulator())
 ancilla_number=8
 data_number=9
 result_dict = {}
+round_count_list=[]
 
-run_name = 'test_log_e_rate_til_fail_20_old_order'
+run_name = 'test_log_e_rate_til_fail_pleak0'
 
-number_of_runs = 20
+number_of_runs = 200
 p1q = 0.001
 p2q = 0.01
+p_leak = 0
+leaked_q_reg = 17*[0]  # a register (initialised as 0s) to track which qubits  leaked, LEAKED == 1 0-8 data,9-16 ancilla
 correction_table = load_lookup_table('correction_table_depolarising.json')
 
 t_begin = time.perf_counter()
 for _ in range(number_of_runs):
     round_count = 0
-    #max_rounds = 2000
+    #max_rounds = 60
     #while round_count < max_rounds:
     while True:
 
@@ -38,13 +41,15 @@ for _ in range(number_of_runs):
         ## Error correction cycle
         prev_syndrome=np.array(quiescent)
 
-        syndrome = np.array(stabilizer_cycle(data, ancilla, eng, reset=True, old_order=True, p1q=p1q, p2q=p2q))
+        syndrome = np.array(stabilizer_cycle(data, ancilla, leaked_q_reg, eng, reset=True,
+                                             p1q=p1q, p2q=p2q, p_leak=p_leak))
         flips_a = (prev_syndrome - syndrome) % 2
         prev_syndrome = syndrome
         if np.all((flips_a == 0)):
             ft_syndrome = flips_a
         else:
-            syndrome = np.array(stabilizer_cycle(data, ancilla, eng, reset=True, old_order=True, p1q=p1q, p2q=p2q))
+            syndrome = np.array(stabilizer_cycle(data, ancilla, leaked_q_reg, eng, reset=True, old_order=True,
+                                                 p1q=p1q, p2q=p2q, p_leak=p_leak))
             flips_b = (prev_syndrome - syndrome) % 2
             prev_syndrome = syndrome
             ft_syndrome = (flips_a + flips_b) %2
@@ -56,8 +61,15 @@ for _ in range(number_of_runs):
         #Measure logical qubit
         All(Measure) | data
         eng.flush()  # flush all gates (and execute measurements)
-        logic_Z_meas = sum([int(q) for q in data])%2
+        data_meas = [int(q) for q in data]
+        ### measure leaked states as bright
+        for i, q in enumerate(leaked_q_reg[:9]):
+            if int(q) == 1:
+                data_meas[i] = 1
+                print('leak registered at data meas')
+        logic_Z_meas = sum(data_meas)%2
         if logic_Z_meas == 1: #incorrect
+            print('incorrect logic meas {}'.format(data_meas))
             break
 
 
@@ -65,22 +77,25 @@ for _ in range(number_of_runs):
     time_taken = t_stop-t_start
 
 
-    if str(round_count) in result_dict:
-        result_dict[str(round_count)] += 1
-    else:
-        result_dict[str(round_count)] = 1
+    # if str(round_count) in result_dict:
+    #     result_dict[str(round_count)] += 1
+    # else:
+    #     result_dict[str(round_count)] = 1
+    round_count_list.append(round_count)
     #
     # print('{} QEC rounds til failure'.format(round_count))
     # print('time taken {}s'.format(time_taken))
 t_end = time.perf_counter()
 total_time_taken = t_end - t_begin
 print('total time taken {}'.format(total_time_taken))
-print(result_dict)
+print(round_count_list)
 
 results={
     'p1q_error': p1q,
     'p2q_error': p2q,
-    'rounds_til_fail_tally': result_dict,
+    'p_leak_error': p_leak,
+    #'rounds_til_fail_tally': result_dict,
+    'rounds_til_fail_list': round_count_list,
     'total_time_taken_{}_runs'.format(number_of_runs): total_time_taken
 }
 
