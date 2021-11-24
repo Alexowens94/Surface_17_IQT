@@ -19,15 +19,15 @@ Here we keep the error model logic.
 
 # Dressed-state error model
 
-# Gate                 |       Associated errors        |   Effect of error     |   Probability of error
-#----------------------------------------------------------------------------------------------------------
-# Rx                   |       Controlled-x             |   X                   |   pxctrl
-#                      |       Leakage                  |   L                   |   pl
-# Ry                   |       Controlled-y             |   Y                   |   pyctrl
-#                      |       Leakage                  |   L                   |   pl
-# Rxx                  |       Rotation error           |   X on both qubits    |   Pxx      (XX error is projected into two X errors)
-#                      |       Motional error           |   X on both qubits    |   Ph       (XX error is projected into two X errors)
-#                      |       Leakage error            |   L on both qubits    |   Pl
+# Gate                 |       Associated errors        |   Effect of error         |   Probability of error
+#----------------------------------------------------------------------------------------------------------------
+# Rx                   |       Controlled-x             |   X                       |   pxctrl
+#                      |       Leakage                  |   L                       |   pl
+# Ry                   |       Controlled-y             |   Y                       |   pyctrl
+#                      |       Leakage                  |   L                       |   pl
+# Rxx                  |       Rotation error           |   X on both qubits        |   Pxx      (XX error is projected into two X errors)
+#                      |       Motional error           |   X on both qubits        |   Ph       (XX error is projected into two X errors)
+#                      |       Leakage error            |   L on both/either qubit  |   Pl
 #                      |                                |   Removes all future MS gates
 
 
