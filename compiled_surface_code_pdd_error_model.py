@@ -17,11 +17,6 @@ from projectq.ops import All, Measure, X, Y, Z, Rx, Ry, Rxx
 #
 #                                 Z ancilla7
 
-def load_lookup_table(filename):
-    with open(filename,'r') as infile:
-        correction_table=json.load(infile)
-    return correction_table
-
 def insert_2q_ctrl_error(qubit1, qubit2):
     X | qubit1
     X | qubit2
@@ -46,7 +41,7 @@ def x_type_entangling(dataq,ancillaq,pxctrl=0,pxxctrl=0,pmot=0,pd=0,cancel_data_
     cancel_data_rx: If True, 'by hand' remove Rx gate to cancel with the Rx in other entangling steps
     on the same data qubit (depedent on choices of s and v)
     """
-    Rxx(s*pi/4) | (dataq,ancillaq)
+    Rxx(s*pi/2) | (dataq,ancillaq)
     if random.random()<pxxctrl:
         insert_2q_ctrl_error(dataq, ancillaq)
     if random.random()<pmot:
@@ -62,7 +57,7 @@ def x_type_entangling(dataq,ancillaq,pxctrl=0,pxxctrl=0,pmot=0,pd=0,cancel_data_
         if random.random()<pd:
             insert_1q_dephasing_error(dataq)
 
-def z_type_entangling(dataq,ancillaq,pxctrl=0,pxxctrl=0,pyctrl=0,pmot=0,pd=0,cancel_data_rx=False,s=1,v=1):
+def z_type_entangling(dataq,ancillaq,pxctrl=0,pyctrl=0,pxxctrl=0,pmot=0,pd=0,cancel_data_rx=False,s=1,v=1):
     """
     CNOT gate, as it appears in z-stabilizer compiled to native operations. All ancilla single qubits ops
     canceled 'by hand'.
@@ -187,7 +182,6 @@ def get_results_log_e_run_til_fail(rounds, time, p1q, p2q):
     return res
 
 def lookup(syndrome, table, display = False):
-
     key = str(syndrome).strip('[,]')
     error_vec = table[key][0]
     if display:
@@ -202,3 +196,8 @@ def apply_correction(error_vec,data):
         if error_vec[i+9] == 1:
             Z | data[i]
     return
+
+def load_lookup_table(filename):
+    with open(filename,'r') as infile:
+        correction_table=json.load(infile)
+    return correction_table
