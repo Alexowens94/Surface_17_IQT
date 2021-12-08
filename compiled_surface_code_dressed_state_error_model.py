@@ -18,7 +18,7 @@ def insert_1q_x_ctrl_error(qubit):
 def insert_1q_y_ctrl_error(qubit):
     Y | qubit
 
-def x_type_entangling(dataq,ancillaq,leaked_reg,d_leak_ind,a_leak_ind,s=1,p_leak=0,pxctrl=0,pxxctrl=0,pmot=0):
+def x_type_entangling(dataq, ancillaq, leaked_reg, d_leak_ind, a_leak_ind, p_leak=0, pxctrl=0, pxxctrl=0, pmot=0, cancel_data_rx=False, s=1):
     if leaked_reg[d_leak_ind] == 0 and leaked_reg[a_leak_ind] == 0:
         Rxx(s*pi/2) | (dataq, ancillaq)
         if random.random() < p_leak:
@@ -28,14 +28,15 @@ def x_type_entangling(dataq,ancillaq,leaked_reg,d_leak_ind,a_leak_ind,s=1,p_leak
         if random.random() < pxxctrl:
             insert_2q_ctrl_error(dataq, ancillaq) # Insert control error
         if random.random() < pmot:
-            insert_2q_motional_error(dataq,ancillaq) # Insert motional error
+            insert_2q_motional_error(dataq, ancillaq) # Insert motional error
     else:
-        print('leak data{} ancilla{}'.format(d_leak_ind,a_leak_ind))
-    Rx(-s*pi/2) | dataq
-    if random.random() < pxctrl:
-        insert_1q_x_ctrl_error(dataq)
+        print('leak data{} ancilla{}'.format(d_leak_ind, a_leak_ind))
+    if not cancel_data_rx:
+        Rx(-s*pi/2) | dataq
+        if random.random() < pxctrl:
+            insert_1q_x_ctrl_error(dataq)
 
-def z_type_entangling(dataq,ancillaq,leaked_reg,d_leak_ind,a_leak_ind,v=1,s=1,p_leak=0,pyctrl=0,pxctrl=0,pxxctrl=0,pmot=0):
+def z_type_entangling(dataq, ancillaq, leaked_reg, d_leak_ind, a_leak_ind, p_leak=0, pxctrl=0, pyctrl=0, pxxctrl=0, pmot=0, cancel_data_rx=False, s=1, v=1):
     Ry(v*pi/2) | dataq
     if random.random()<pyctrl:
         insert_1q_y_ctrl_error(dataq)
@@ -48,59 +49,58 @@ def z_type_entangling(dataq,ancillaq,leaked_reg,d_leak_ind,a_leak_ind,v=1,s=1,p_
         if random.random() < pxxctrl:
             insert_2q_ctrl_error(dataq, ancillaq)
         if random.random() < pmot:
-            insert_2q_motional_error(dataq,ancillaq)
+            insert_2q_motional_error(dataq, ancillaq)
     else:
-        print('leak data{} ancilla{}'.format(d_leak_ind,a_leak_ind))
-    Rx(-s * pi / 2) | dataq
-    if random.random() < pxctrl:
-        insert_1q_x_ctrl_error(dataq)
+        print('leak data{} ancilla{}'.format(d_leak_ind, a_leak_ind))
+    if not cancel_data_rx:
+        Rx(-s * pi / 2) | dataq
+        if random.random() < pxctrl:
+            insert_1q_x_ctrl_error(dataq)
     Ry(-v * pi / 2) | dataq
     if random.random()<pyctrl:
         insert_1q_y_ctrl_error(dataq)
 
-def stabiliser_timestep_1(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-        x_type_entangling(data[4], ancilla[1], pxctrl=0,pyctrl=0,pmot=0,pd=0)
-        x_type_entangling(data[8], ancilla[6], pxctrl=0,pyctrl=0,pmot=0,pd=0)
-        x_type_entangling(data[6], ancilla[4], pxctrl=0,pyctrl=0,pmot=0,pd=0)
+def stabiliser_timestep_1(data, ancilla, leaked_reg, p_leak, pxctrl, pxxctrl, pmot):
+    x_type_entangling(data[4], ancilla[1], leaked_reg, d_leak_ind=4, a_leak_ind=1+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, s=1)
+    x_type_entangling(data[8], ancilla[6], leaked_reg, d_leak_ind=8, a_leak_ind=6+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, s=1)
+    x_type_entangling(data[6], ancilla[4], leaked_reg, d_leak_ind=6, a_leak_ind=4+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, s=1)
 
-def stabiliser_timestep_2(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    # TODO:
-    # put the qubits in in the right order in the stabiliser timesteps
-    x_type_entangling(data[1], ancilla[1], pxctrl=0,pyctrl=0,pmot=0,pd=0)
-    x_type_entangling(data[3], ancilla[4], pxctrl=0,pyctrl=0,pmot=0,pd=0)
-    x_type_entangling(data[5], ancilla[6], pxctrl=0,pyctrl=0,pmot=0,pd=0)
+def stabiliser_timestep_2(data, ancilla, leaked_reg, p_leak, pxctrl, pxxctrl, pmot):
+    x_type_entangling(data[1], ancilla[1], leaked_reg, d_leak_ind=1, a_leak_ind=1+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, s=-1)
+    x_type_entangling(data[5], ancilla[6], leaked_reg, d_leak_ind=5, a_leak_ind=6+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, s=-1)
+    x_type_entangling(data[3], ancilla[4], leaked_reg, d_leak_ind=3, a_leak_ind=4+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, s=-1)
 
-def stabiliser_timestep_3(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    x_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    x_type_entangling(data[3], ancilla[4], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    x_type_entangling(data[5], ancilla[6], pxctrl=0, pyctrl=0, pmot=0, pd=0)
+def stabiliser_timestep_3(data, ancilla, leaked_reg, p_leak, pxctrl, pxxctrl, pmot):
+    x_type_entangling(data[3], ancilla[1], leaked_reg, d_leak_ind=3, a_leak_ind=1+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, s=1)
+    x_type_entangling(data[7], ancilla[6], leaked_reg, d_leak_ind=7, a_leak_ind=6+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, s=1)
+    x_type_entangling(data[5], ancilla[3], leaked_reg, d_leak_ind=5, a_leak_ind=3+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, s=1)
 
-def stabiliser_timestep_4(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    x_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    x_type_entangling(data[3], ancilla[4], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    x_type_entangling(data[5], ancilla[6], pxctrl=0, pyctrl=0, pmot=0, pd=0)
+def stabiliser_timestep_4(data, ancilla, leaked_reg, p_leak, pxctrl, pxxctrl, pmot):
+    x_type_entangling(data[0], ancilla[1], leaked_reg, d_leak_ind=0, a_leak_ind=1+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, s=-1)
+    x_type_entangling(data[4], ancilla[6], leaked_reg, d_leak_ind=4, a_leak_ind=6+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, s=-1)
+    x_type_entangling(data[2], ancilla[3], leaked_reg, d_leak_ind=2, a_leak_ind=3+9, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot, s=-1)
 
-def stabiliser_timestep_5(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
+def stabiliser_timestep_5(data, ancilla, leaked_reg, p_leak, pxctrl, pyctrl, pxxctrl, pmot):
+    z_type_entangling(data[1], ancilla[2], leaked_reg, d_leak_ind=1, a_leak_ind=2+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, v=1, s=1)
+    z_type_entangling(data[3], ancilla[5], leaked_reg, d_leak_ind=1, a_leak_ind=2+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, v=1, s=1)
+    z_type_entangling(data[7], ancilla[7], leaked_reg, d_leak_ind=7, a_leak_ind=7+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, v=1, s=1)
 
-def stabiliser_timestep_6(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
+def stabiliser_timestep_6(data, ancilla, leaked_reg, p_leak, pxctrl, pyctrl, pxxctrl, pmot):
+    z_type_entangling(data[2], ancilla[2], leaked_reg, d_leak_ind=2, a_leak_ind=2+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, v=1, s=-1)
+    z_type_entangling(data[4], ancilla[5], leaked_reg, d_leak_ind=4, a_leak_ind=5+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, v=1, s=-1)
+    z_type_entangling(data[8], ancilla[7], leaked_reg, d_leak_ind=8, a_leak_ind=7+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, v=1, s=-1)
 
-def stabiliser_timestep_7(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
+def stabiliser_timestep_7(data, ancilla, leaked_reg, p_leak, pxctrl, pyctrl, pxxctrl, pmot):
+    z_type_entangling(data[4], ancilla[2], leaked_reg, d_leak_ind=4, a_leak_ind=2+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, v=1, s=1)
+    z_type_entangling(data[6], ancilla[5], leaked_reg, d_leak_ind=6, a_leak_ind=5+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, v=1, s=1)
+    z_type_entangling(data[0], ancilla[0], leaked_reg, d_leak_ind=0, a_leak_ind=0+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, v=1, s=1)
 
-def stabiliser_timestep_8(data,ancilla,v=1,s=1,pxctrl=0,pyctrl=0,pmot=0,pd=0):
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
-    z_type_entangling(data[1], ancilla[1], pxctrl=0, pyctrl=0, pmot=0, pd=0)
+def stabiliser_timestep_8(data, ancilla, leaked_reg, p_leak, pxctrl, pyctrl, pxxctrl, pmot):
+    z_type_entangling(data[5], ancilla[2], leaked_reg, d_leak_ind=5, a_leak_ind=2+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, v=1, s=-1)
+    z_type_entangling(data[7], ancilla[5], leaked_reg, d_leak_ind=7, a_leak_ind=5+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, v=1, s=-1)
+    z_type_entangling(data[1], ancilla[0], leaked_reg, d_leak_ind=1, a_leak_ind=0+9, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot, cancel_data_rx=True, v=1, s=-1)
 
-def stabilizer_cycle(data, ancilla, eng, reset=True, pxctrl=0,pxxctrl=0,pyctrl=0,pmot=0,pd=0):
+def stabilizer_cycle(data, ancilla, leaked_reg, eng, reset=True, p_leak=0, pxctrl=0, pyctrl=0, pxxctrl=0, pmot=0):
     '''
     :param data: list of the data qubits
     :param ancilla: list of the ancilla qubits
@@ -110,14 +110,14 @@ def stabilizer_cycle(data, ancilla, eng, reset=True, pxctrl=0,pxxctrl=0,pyctrl=0
     '''
     if len(data)!=9:
         raise Exception('data qubit register does not correspond to the surface 17 QEC code')
-    stabiliser_timestep_1(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_2(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_3(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_4(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_5(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_6(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_7(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
-    stabiliser_timestep_8(data,ancilla,pxctrl,pxxctrl,pyctrl,pmot,pd)
+    stabiliser_timestep_1(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_2(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_3(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_4(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_5(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_6(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_7(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot)
+    stabiliser_timestep_8(data, ancilla, leaked_reg, p_leak=p_leak, pxctrl=pxctrl, pyctrl=pyctrl, pxxctrl=pxxctrl, pmot=pmot)
 
     All(Measure) | ancilla
     eng.flush()
@@ -145,3 +145,24 @@ def get_results_log_e_run_til_fail(rounds, time, p1q, p2q):
         "time_taken": time,
           }
     return res
+
+def lookup(syndrome, table, display = False):
+    key = str(syndrome).strip('[,]')
+    error_vec = table[key][0]
+    if display:
+        print('ft syndrome: {}'.format(syndrome))
+        print('error vector: {}'.format(error_vec))
+    return error_vec
+
+def apply_correction(error_vec,data):
+    for i in range(9):
+        if error_vec[i] == 1:
+            X | data[i]
+        if error_vec[i+9] == 1:
+            Z | data[i]
+    return
+
+def load_lookup_table(filename):
+    with open(filename, 'r') as infile:
+        correction_table=json.load(infile)
+    return correction_table
