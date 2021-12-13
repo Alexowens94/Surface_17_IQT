@@ -69,7 +69,7 @@ def z_type_entangling(dataq,ancillaq,pxctrl=0,pyctrl=0,pxxctrl=0,pmot=0,pd=0,can
         insert_1q_y_ctrl_error(dataq)
     if random.random()<pd:
         insert_1q_dephasing_error(dataq)
-    Rxx(s * pi / 4) | (dataq, ancillaq)
+    Rxx(s * pi / 2) | (dataq, ancillaq)
     if random.random() < pxxctrl:
         insert_2q_ctrl_error(dataq, ancillaq)
     if random.random() < pmot:
