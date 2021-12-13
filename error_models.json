@@ -1,0 +1,31 @@
+
+{  "PDD_model" : {
+            "probabilities" : ["p_X_ctrl", "p_Y_ctrl", "p_XX_ctrl" , "p_deph", "p_heat"],
+            "gates" : {
+                "Rx": [["X", "p_X_ctrl", "control_error"],
+                        ["Z","p_deph", "dephasing"] ],
+                "Ry": [["Y", "p_Y_ctrl", "control_error"],
+                        ["Z","p_deph", "dephasing"] ],
+                "Rxx": [["XX", "p_XX_ctrl", "2Qbit control error"],
+                        ["XX", "p_heat", "2Qbit heating error"],
+                        ["Zc", "p_deph", "control Qbit dephasing error"],
+                        ["Zt", "p_deph", "target Qbit dephasing error"]]
+                       }
+              },
+  "Dress_model" : {
+            "probabilities" : ["p_X_ctrl", "p_Y_ctrl", "p_XX_ctrl" , "p_leak", "p_heat"],
+            "gates" : {
+                "Rx": [["X", "p_X_ctrl", "control error"],
+                        ["L","p_leak", "leakage error"] ],
+                "Ry": [["Y", "p_Y_ctrl", "control error"],
+                        ["L","p_leak", "leakage error"] ],
+                "Rxx": [["XX", "p_XX_ctrl", "2Qbit control error"],
+                        ["XX", "p_heat", "2Qbit heating error"],
+                        ["Lc", "p_leak", "control Qbit leakage error"],
+                        ["Lt", "p_leak", "target Qbit leakage error"]]
+                       }
+              }
+
+
+  }
+
