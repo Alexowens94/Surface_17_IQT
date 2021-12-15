@@ -2,7 +2,7 @@ import random
 import numpy as np
 import json
 from math import sqrt, pi
-from projectq.ops import All, Measure, X, Y, Z, Rx, Ry, Rxx
+from projectq.ops import All, Measure, X, Y, Z, H, Rx, Ry, Rxx
 
 
 def instantiate_error_model(p_set, model):
@@ -26,9 +26,45 @@ def instantiate_error_model(p_set, model):
     return error_model, error_model_probabilities
 
 
+def logical_measurement(data, basis, eng):
+    if basis == 'X':
+        All(H) | data  # change Z -> X basis
+
+    All(Measure) | data
+    eng.flush()  # flush all gates (and execute measurements)
+    data_meas = [int(q) for q in data]
+    logic_measurement = sum(data_meas) % 2
+
+    return logic_measurement
+
+def logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model,e_probs):
+    '''
+    prepare the logical qubit, return the quiescent state
+    :param data: list of data qubits
+    :param basis: string "X" or "Z", basis to prepare in
+    :param state: int 0 or 1, state you wish to prepare interpretting 0(1) in X basis as |+>(|->)
+    #TODO lots of redundant arguments - how to refactor this
+    '''
+    if state == 1:
+        All(X) | data  # rotate to orthogonal state (all qubits start in 0, Z basis)
+    if basis == 'X':
+        All(H) | data  # change Z -> X basis
+
+    # Perfect logical state prep (well motivated as per
+    # https://iopscience.iop.org/article/10.1088/1367-2630/aab341/pdf)
+    # quiescent prepared perfectly (all errors = 0)
+    errorless_dict = {}  # because of the way ive coded probabilities as dictionary with keys known apriori,
+    # need to construct the 0 error version at run time to pass as an argument for perfect quiescent state prep
+    for key in e_probs.keys():
+        errorless_dict[key] = 0
+    quiescent = np.array(stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, errorless_dict, reset=True))
+
+    return quiescent
+
 def insert_errors(gate, qubits, error_model, e_model_probs, c_ind=-1, t_ind=-1, d_ind=-1, display=False):
     error_list = error_model['gates'][gate]
     for e in error_list:
+        #print(e)
         if display:
             print(e[2])
         insert_error(error=e[0], prob=e_model_probs[e[1]], qubits=qubits, c_ind=c_ind, t_ind=t_ind, d_ind=d_ind)
@@ -36,6 +72,7 @@ def insert_errors(gate, qubits, error_model, e_model_probs, c_ind=-1, t_ind=-1, 
 
 def insert_error(error, prob, qubits, c_ind, t_ind, d_ind):
     if random.random() < prob:
+        #print(error, prob, qubits)
         if error == 'X':
             X | qubits
         if error == 'Y':
@@ -55,6 +92,56 @@ def insert_error(error, prob, qubits, c_ind, t_ind, d_ind):
             insert_leakage(c_ind)
         if error == 'Lt':
             insert_leakage(t_ind)
+        if error == 'depol':
+            insert_2q_error(qubits[0],qubits[1])
+
+def insert_2q_error(qubit1, qubit2):
+    rand = random.random()
+    if rand < 1 / 15:
+        # I|qubit1
+        X | qubit2
+    if 1 / 15 < rand < (2 * 1 / 15):
+        # I|qubit1
+        Y | qubit2
+    if (2 * 1 / 15) < rand < (3 * 1 / 15):
+        # I|qubit1
+        Z | qubit2
+    if (3 * 1 / 15) < rand < (4 * 1 / 15):
+        X | qubit1
+        # I|qubit2
+    if (4 * 1 / 15) < rand < (5 * 1 / 15):
+        X | qubit1
+        X | qubit2
+    if (5 * 1 / 15) < rand < (6 * 1 / 15):
+        X | qubit1
+        Y | qubit2
+    if (6 * 1 / 15) < rand < (7 * 1 / 15):
+        X | qubit1
+        Z | qubit2
+    if (7 * 1 / 15) < rand < (8 * 1 / 15):
+        Y | qubit1
+        # I|qubit2
+    if (8 * 1 / 15) < rand < (9 * 1 / 15):
+        Y | qubit1
+        X | qubit2
+    if (9 * 1 / 15) < rand < (10 * 1 / 15):
+        Y | qubit1
+        Y | qubit2
+    if (10 * 1 / 15) < rand < (11 * 1 / 15):
+        Y | qubit1
+        Z | qubit2
+    if (11 * 1 / 15) < rand < (12 * 1 / 15):
+        Z | qubit1
+        # I|qubit2
+    if (12 * 1 / 15) < rand < (13 * 1 / 15):
+        Z | qubit1
+        X | qubit2
+    if (13 * 1 / 15) < rand < (14 * 1 / 15):
+        Z | qubit1
+        Y | qubit2
+    if (14 * 1 / 15) < rand < (15 * 1 / 15):
+        Z | qubit1
+        Z | qubit2
 
 
 def insert_leakage(qubit):
@@ -85,7 +172,7 @@ def z_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, d
         print('leak data{} ancilla{}'.format(d_leak_ind, a_leak_ind))
     if not cancel_data_rx:
         Rx(-s * pi / 2) | dataq
-        insert_errors(gate='Rxx', qubits=dataq, error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind)
+        insert_errors(gate='Rx', qubits=dataq, error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind)
     Ry(-v * pi / 2) | dataq
     insert_errors(gate='Ry', qubits=dataq, error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind)
 

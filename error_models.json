@@ -24,8 +24,18 @@
                         ["Lc", "p_leak", "control Qbit leakage error"],
                         ["Lt", "p_leak", "target Qbit leakage error"]]
                        }
+              },
+  "depolarising_model" : {
+            "probabilities" : ["px","py","pz","p"],
+            "gates" : {
+                "Rx": [["X", "px", "depolarising"],
+                       ["Y", "py", "depolarising"],
+                       ["Z","pz", "depolarising"] ],
+                "Ry": [["X", "px", "depolarising"],
+                       ["Y", "py", "depolarising"],
+                       ["Z","pz", "depolarising"] ],
+                "Rxx": [["depol", "p", "2q depolarising"]]
+                       }
               }
-
-
-  }
+}
 
