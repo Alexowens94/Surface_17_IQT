@@ -26,18 +26,41 @@ def instantiate_error_model(p_set, model):
     return error_model, error_model_probabilities
 
 
-def logical_measurement(data, basis, eng):
+def logical_measurement(data, basis, eng, classical_lookup, quiescent, round):
     if basis == 'X':
         All(H) | data  # change Z -> X basis
 
     All(Measure) | data
     eng.flush()  # flush all gates (and execute measurements)
     data_meas = [int(q) for q in data]
-    logic_measurement = sum(data_meas) % 2
-
+    # print('d_meas {}'.format(data_meas))
+    # classical corrections TODO: implement for X basis prep
+    if basis == 'Z':  # from measuring data qubits in z basis, can infer a z stabiliser measurement,
+        # to perform bit flip corrections (if measuring in x basis, can correct phase flips)
+        q = [quiescent[0], quiescent[2], quiescent[5], quiescent[7]]
+        classical_syndrome = [0, 0, 0, 0]
+        classical_syndrome[0] = (data_meas[0] + data_meas[1]) % 2
+        classical_syndrome[1] = (data_meas[1] + data_meas[2] + data_meas[4] + data_meas[5]) % 2
+        classical_syndrome[2] = (data_meas[3] + data_meas[4] + data_meas[6] + data_meas[7]) % 2
+        classical_syndrome[3] = (data_meas[7] + data_meas[8]) % 2
+        csyndrome = np.array(classical_syndrome) - np.array(q)
+        # print(csyndrome)
+        weight = return_weight_classical_lookup(csyndrome, classical_lookup)
+        # print(weight)
+    # ZL1 = (data_meas[0] + data_meas[3] + data_meas[6]) % 2
+    # ZL2 = (data_meas[1] + data_meas[4] + data_meas[7]) % 2
+    # ZL3 = (data_meas[2] + data_meas[5] + data_meas[8]) % 2
+    # print(data_meas)
+    logic_measurement = (sum(data_meas) + weight) % 2  # weight adds classical correction
+    # if (ZL1+ZL2+ZL3) % 3 != 0:
+    #     print('round {}'.format(round))
+    #     print('ZLs {} {} {}'.format(ZL1, ZL2, ZL3))
+    #     print('l_meas (corrected) {}'.format(logic_measurement))
+    #     print('synd {}'.format(csyndrome))
     return logic_measurement
 
-def logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model,e_probs):
+
+def logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, e_probs):
     '''
     prepare the logical qubit, return the quiescent state
     :param data: list of data qubits
@@ -72,7 +95,7 @@ def insert_errors(gate, qubits, error_model, e_model_probs, c_ind=-1, t_ind=-1, 
 
 def insert_error(error, prob, qubits, c_ind, t_ind, d_ind):
     if random.random() < prob:
-        #print(error, prob, qubits)
+        # print(error, prob, qubits)
         if error == 'X':
             X | qubits
         if error == 'Y':
@@ -262,6 +285,7 @@ def stabilizer_cycle(data, ancilla, leaked_reg, eng, error_model, e_model_probs,
                 X | a
     return syndrome_t
 
+
 def get_results_log_e(rounds, runs, incorrect_count, time):
     res = {
         "runs": runs,
@@ -280,13 +304,21 @@ def get_results_log_e_run_til_fail(rounds, time, p1q, p2q):
           }
     return res
 
-def lookup(syndrome, table, display = False):
+
+def lookup(syndrome, table, display=False):
     key = str(syndrome).strip('[,]')
     error_vec = table[key][0]
     if display:
         print('ft syndrome: {}'.format(syndrome))
         print('error vector: {}'.format(error_vec))
     return error_vec
+
+
+def return_weight_classical_lookup(syndrome, table):
+    key = str(syndrome).strip('[,]')
+    weight = table[key][1]
+    return weight
+
 
 def apply_correction(error_vec,data):
     for i in range(9):
@@ -295,6 +327,7 @@ def apply_correction(error_vec,data):
         if error_vec[i+9] == 1:
             Z | data[i]
     return
+
 
 def load_lookup_table(filename):
     with open(filename, 'r') as infile:
