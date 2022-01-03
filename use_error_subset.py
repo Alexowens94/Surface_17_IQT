@@ -1,5 +1,4 @@
 from compiled_surface_code_error_subsets import *
-from generate_error_subset import *
 from projectq import MainEngine
 from projectq.backends import Simulator
 
@@ -13,8 +12,8 @@ ancilla = eng.allocate_qureg(8)
 errors_to_generate = {"XCtrlError" : 5, "DephasingError" : 6}
 
 # Create an error subset
-error_subset = generate_error_subset(errors_to_generate)
-# x_error_1 = XCtrlError(location=[0,7,2,1])
+error_subset = Error.generate_error_subset(errors_to_generate)
+# x_error_1 = DephasingError(location=[0,0,0,1])
 for error in error_subset:
     print("name: {}, location: {}".format(error.name, error.location))
 # error_subset_2 = [x_error_1]
