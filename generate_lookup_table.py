@@ -32,7 +32,7 @@ def calc_weight(error_vec):
       coin the depolarising noise model count y errors as same weight as a single x or z
       (don't count an x AND  z error)'''
     weight=sum(error_vec)
-    for i in range(9):
+    for i in range(9):  # for assigning same weight to y errors (dont count them twice) (called this depolarising table)
         if vec[i] == 1 and vec[i + 9] == 1:
             weight -= 1
 
@@ -46,12 +46,12 @@ print(len(list(itertools.product(*lists))))
 # print(np.matmul(T,avec) %2 )
 
 for element in list(itertools.product(*lists))[:]:
-    vec=np.array(element)
+    vec = np.array(element)
     #print(vec)
-    weight=calc_weight(vec)
+    weight = calc_weight(vec)
     #print('weight = {}'.format(weight))
-    syndrome=np.matmul(T,vec) %2
-    label=str(syndrome)
+    syndrome = np.matmul(T, vec) % 2
+    label = str(syndrome)
     label = label.strip('[,]')
     #print(label)
     #print(correction_table[label])
@@ -73,11 +73,11 @@ for key in correction_table.keys():
     print((key,correction_table[key]))
 #######
 
-with open('correction_table_depolarising.json','w') as file:
-    json.dump(correction_table,file)
+with open('correction_table_equal_weight.json', 'w') as file:
+    json.dump(correction_table, file)
 
-with open('correction_table_depolarising.json','r') as infile:
-    table=json.load(infile)
+# with open('correction_table_equal_weight.json','r') as infile:
+#     table=json.load(infile)
 #
 # for key in table.keys():
 #     print((key,table[key]))

@@ -3,7 +3,8 @@ import json
 from scipy.optimize import curve_fit
 import numpy as np
 
-with open('test_log_e_rate_til_fail_pleak0.txt', 'r') as file:
+filename = 'blah'
+with open(filename, 'r') as file:
     results=json.load(file)
 #tally = results["rounds_til_fail_tally"]
 data = results["rounds_til_fail_list"]
