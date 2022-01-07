@@ -1,4 +1,3 @@
-import random
 import time
 from compiled_surface_code_arbitrary_error_model import *
 import numpy as np
@@ -7,6 +6,7 @@ from projectq import MainEngine
 from projectq.backends import Simulator
 import matplotlib.pyplot as plt
 from math import comb
+
 
 def error_test(index, type, data):
     index = index % 9
@@ -20,6 +20,7 @@ def error_test(index, type, data):
         Z | data[index]
         print('Z {}'.format(index))
 
+
 def ancilla_test(index):
     index = index % 8
     faulty_synd = np.zeros(8, dtype=int)
@@ -27,7 +28,9 @@ def ancilla_test(index):
     print('a error {}'.format(index))
     return faulty_synd
 
-def calculate_log_e_rate(num_runs, filename, correction_table, e_model, e_probs, bitflip_table, num_bins=20):
+
+def calculate_log_e_rate(num_runs, filename, correction_table, e_model, e_probs, bitflip_table, num_bins=20,
+                         cz_compilation=False):
     """
     Iterates through a number of runs.
     Each run fails after a number of rounds of error correction.
@@ -66,21 +69,26 @@ def calculate_log_e_rate(num_runs, filename, correction_table, e_model, e_probs,
             data = eng.allocate_qureg(9)
             ancilla = eng.allocate_qureg(8)
             # prepare logical qubit
-            quiescent = logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, e_probs)
+            quiescent = logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, e_probs, cz_compilation)
             # print('quiescent {}'.format(quiescent))
             # Error correction cycle
             # error_test(round_count, 'X', data)
             prev_syndrome = np.array(quiescent)
             # print('q {}'.format(prev_syndrome))
-            syndrome = np.array(stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, e_probs, reset=True))  #ancilla_test(round_count)#
-            # print(syndrome)
+            if cz_compilation:
+                syndrome = np.array(cz_stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, e_probs, reset=True))
+            else:
+                syndrome = np.array(stabilizer_cycle_error_index(data, ancilla, leaked_q_reg, eng, e_model, e_probs, reset=True))
             flips_a = (prev_syndrome - syndrome) % 2
             # print('fa {}'.format(flips_a))
             prev_syndrome = syndrome
             if np.all((flips_a == 0)):
                 ft_syndrome = flips_a
             else:
-                syndrome = np.array(stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, e_probs, reset=True))
+                if cz_compilation:
+                    syndrome = np.array(cz_stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, e_probs, reset=True))
+                else:
+                    syndrome = np.array(stabilizer_cycle_error_index(data, ancilla, leaked_q_reg, eng, e_model, e_probs, reset=True))
                 syndrome_b_count += 1
                 # print(syndrome)
                 flips_b = (prev_syndrome - syndrome) % 2
@@ -93,10 +101,10 @@ def calculate_log_e_rate(num_runs, filename, correction_table, e_model, e_probs,
             round_count += 1
 
             eng.flush()
-            # print('round {}'.format(round_count))
+            print('round {}'.format(round_count))
 
             # #Measure logical qubit
-            logical_meas = logical_measurement(data, basis, eng, bitflip_table, quiescent, round_count)
+            logical_meas = logical_measurement(data, basis, eng, bitflip_table, quiescent, leaked_q_reg)
             # print(logical_meas)
             if logical_meas != state:
                 # print('failed round {}'.format(round_count))
@@ -152,16 +160,15 @@ def generate_error_locations(num_e, num_e_locations):
     return mask
 
 
-def calculate_log_e_rate_error_subset(num_runs, filename, correction_table, model, eset, bitflip_table):
+def calculate_log_e_rate_error_subset(num_runs, correction_table, model, eset, locations, bitflip_table, cz_comp=False):
     """
-
     """
     failed_count = 0
-
     t_begin = time.perf_counter()
     for _ in range(num_runs):
+        # print('run {}'.format(_))
         # in error subset testing over 1 round, so reinitialise leaked_reg within loop
-        leaked_q_reg = 17 * [0]  # a register (initialised as 0s) to track which qubits  leaked, LEAKED == 1 0-8 data,9-16 ancilla
+        leaked_q_reg = 17 * [0]  # tracks which qubits  leak, LEAKED == 1. indices -> 0-8 data,9-16 ancilla
 
         # randomly choose basis and initial logical state - keep consistent throughout all rounds within run
         if random.random() < 1:
@@ -173,14 +180,13 @@ def calculate_log_e_rate_error_subset(num_runs, filename, correction_table, mode
         else:
             state = 1
         # print('b = {}, s = {}'.format(basis, state))
+
+        # generate random choice of error locations, given num. of each error type (eset) and total possible (locations)
         # print('eset {}'.format(eset))
-        p_set = [generate_error_locations(num_e=eset[0], num_e_locations=12),  # px
-                 generate_error_locations(num_e=eset[1], num_e_locations=18),  # py
-                 generate_error_locations(num_e=eset[2], num_e_locations=24),  # pxx
-                 generate_error_locations(num_e=eset[3], num_e_locations=78),  # dephasing
-                 generate_error_locations(num_e=eset[4], num_e_locations=24)  # heating
-                 ]
-        # print(p_set)
+        p_set = [generate_error_locations(eset[i], locations[i]) for i in range(len(eset))]
+        # for p in p_set:
+        #     print('error locations {}'.format(len(p)))
+        #     print('errors of type {} '.format(sum(p)))
         e_model, model_probs = instantiate_error_model(p_set, model)
         # print(e_model['gates'], model_probs)
         eng = MainEngine(Simulator())
@@ -188,43 +194,36 @@ def calculate_log_e_rate_error_subset(num_runs, filename, correction_table, mode
         # Initialise qubit register
         data = eng.allocate_qureg(9)
         ancilla = eng.allocate_qureg(8)
+
         # prepare logical qubit
-        quiescent = logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, model_probs)
+        quiescent = logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, model_probs, cz_comp)
+
         # Error correction cycle
         # error_test(round_count, 'X', data)
         prev_syndrome = np.array(quiescent)
         # print('real syndrome meas')
-        syndrome = np.array(stabilizer_cycle_error_index(data, ancilla, leaked_q_reg, eng, e_model, model_probs,
-                                                         reset=True))
+        if cz_comp:
+            syndrome = cz_stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, model_probs, reset=True)
+        else:
+            syndrome = stabilizer_cycle_error_index(data, ancilla, leaked_q_reg, eng, e_model, model_probs, reset=True)
+        syndrome = np.array(syndrome)
         flips_a = (prev_syndrome - syndrome) % 2
         error_vec = lookup(flips_a, correction_table)
         apply_correction(error_vec, data)
-
         eng.flush()
         # print('round {}'.format(round_count))
 
         # #Measure logical qubit
-        logical_meas = logical_measurement(data, basis, eng, bitflip_table, quiescent)
+        logical_meas = logical_measurement(data, basis, eng, bitflip_table, quiescent, leaked_q_reg)
         # print(logical_meas)
         if logical_meas != state:
             failed_count += 1
-
-
-
     t_end = time.perf_counter()
     total_time_taken = t_end - t_begin
     log_e_rate = failed_count/num_runs
+    print(log_e_rate)
     print('total_time_taken_{}_runs_{}'.format(num_runs, total_time_taken))
-    # results = {
-    #
-    #     'total_time_taken_{}_runs'.format(num_runs): total_time_taken,
-    #     'probability_set': model_probs,
-    #     'subset logical error rate': log_e_rate,
-    #     'error subset': eset,
-    #     'error_model': e_model,
-    # }
-    # with open("imp_samp/" + filename + '.json', 'w') as file:
-    #     json.dump(results, file)
+
     return log_e_rate
 
 
@@ -236,21 +235,21 @@ def subset_weight(params):
         weight *= prob
     return weight
 
-def weighted_logical_error_rate(probs, esets, log_e_dict, gates = [12, 18, 24, 78, 24]):
+
+def weighted_logical_error_rate(probs, esets, log_e_dict, error_locations):
     sum_log_e = 0
     weights = []
     subset_e_rates = []
 
     for eset in esets:
-        # weight = subset_weight([(gates[0], probs[0], eset[0]),
-        #                (gates[1], probs[1], eset[1]),
-        #                (gates[2], probs[2], eset[2])])
-        weight = subset_weight([(gates[i], probs[i], eset[i]) for i in range(len(eset))])
+        #  recalculate subset weights with probabilities given in argument - to plot log e curves
+        weight = subset_weight([(error_locations[ind], probs[ind], eset[ind]) for ind in range(len(eset))])
         log_e_subset = weight * log_e_dict[str(eset)]
         sum_log_e += log_e_subset
         weights.append(weight)
         subset_e_rates.append(log_e_subset)
     return sum_log_e, weights, subset_e_rates
+
 
 def plot_log_e_rate_graph(filename, results, num_bins, include_b, save=True):
     data = np.array(results['rounds_til_fail_list'], dtype='float64')
@@ -272,6 +271,7 @@ def plot_log_e_rate_graph(filename, results, num_bins, include_b, save=True):
         plt.show()
     plt.close()
     return log_e_rate
+
 
 def plot_log_e_rate_graphs(filename, results, num_bins, save=True):
     log_e_rate = []
@@ -297,6 +297,7 @@ def plot_log_e_rate_graphs(filename, results, num_bins, save=True):
     plt.close()
     # return log_e_rate
 
+
 def f(t, A, r):
     return A * np.exp(-r * t)
 #
@@ -305,31 +306,35 @@ def f(t, A, r):
 #     results = json.load(file)
 # plot_log_e_rate_graph(filename, results, 20, include_b=True, save=False)
 
-
-
-with open("imp_samp\\1000_Dress_imp_samp_reset_leakage_each_run.json", 'r') as file:
-    log_e_dict = json.load(file)
-with open("imp_samp\\significant_subsets_Dress_pl_2e4.json") as file:
-    error_subsets = json.load(file)
-pts = 50
-sum_log_e = np.zeros(pts)
-# sum_log_e = np.zeros((pts, pts))
-ps = np.geomspace(0.01, 0.00001, pts)
-pds = np.linspace(0.001, 0.00001, pts)
-pheat = 1e-3
-for pd in [2e-6, 2e-5, 2e-4]:
-    for i, p in enumerate(ps):
-        probs = (p/10, p/10, p, pd, pheat)
-        # for j, pd in enumerate(pds):
-        #     probs = (p/10, p/10, p, pd, 0.0001)
-        sum_log_e[i] = weighted_logical_error_rate(probs=probs, esets=error_subsets, log_e_dict=log_e_dict)[0]
-    plt.loglog(ps, sum_log_e, label='logical_e, pd={}'.format(pd))
-# X, Y = np.meshgrid(ps, pds)
-# plt.contourf(X, Y, sum_log_e, levels = np.linspace(5e-4, 5e-3, 11))
-# plt.xscale('log')
-# plt.yscale('log')
-# plt.colorbar()
-plt.title('pdd pheat={}'.format(pheat))
-plt.loglog(ps,ps, label='physical error rate')
-plt.legend()
-plt.show()
+#
+#
+# with open("imp_samp\\ImpSamp_z0_leakageredux_1000test_significant_subsets_cz.json", 'r') as file:
+#     log_e_dict = json.load(file)
+# with open("imp_samp\\test_significant_subsets_cz.json") as file:
+#     data = json.load(file)
+#     error_subsets = data['error_subset_list']
+#     locations = data['error_locations']
+# pts = 50
+# sum_log_e = np.zeros(pts)
+# # sum_log_e = np.zeros((pts, pts))
+# ps = np.geomspace(0.01, 0.0001, pts)
+# pds = np.linspace(0.001, 0.0001, pts)
+# pplot = np.zeros(pts)
+# for pd in [2e-6, 2e-5, 2e-4]:
+#     for i, p in enumerate(ps):
+#         probs = (p, pd/10, 5e-5, 5e-5, pd)
+#         pplot[i]= sum(probs)
+#         # for j, pd in enumerate(pds):
+#         #     probs = (p/10, p/10, p, pd, 0.0001)
+#         sum_log_e[i] = weighted_logical_error_rate(probs, error_subsets, log_e_dict, locations)[0]
+#     plt.loglog(pplot, sum_log_e, label='logical_e, pd={}'.format(pd))
+#     plt.loglog(pplot, pplot, label='sum physical')
+# # X, Y = np.meshgrid(ps, pds)
+# # plt.contourf(X, Y, sum_log_e, levels = np.linspace(5e-4, 5e-3, 11))
+# # plt.xscale('log')
+# # plt.yscale('log')
+# # plt.colorbar()
+# plt.title('cz comp ')#.format(pheat))
+# # plt.loglog(ps,ps, label='physical error rate')
+# plt.legend()
+# plt.show()
