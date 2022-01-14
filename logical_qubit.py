@@ -5,6 +5,19 @@ from projectq import MainEngine
 from projectq.backends import Simulator
 from projectq.ops import All, Measure, X, Z, H, Rx, Ry, Rxx
 
+class NoisyGate():
+
+    def __init__(self, gate, location=None, error_list=[]):
+        self.gate = gate
+        self.location = location
+        self.error_list = error_list
+
+    def apply(self, qubits):
+        self.gate | (qubits)
+        for error in self.error_list:
+            if self.location == error.location:
+                error.insert_error(*qubits)
+                print("error {} inserted at {}".format(error.name, self.location))
 
 class EntanglingOperation():
 
@@ -18,19 +31,11 @@ class EntanglingOperation():
         cancel_data_rx: If True, 'by hand' remove Rx gate to cancel with the Rx in other entangling steps
         on the same data qubit (depedent on choices of s and v)
         """
-        Rxx(s * pi / 2) | (dataq, ancillaq)
-        this_location = self.location + [0]
-        for error in error_list:
-            if this_location == error.location:
-                error.insert_error(dataq, ancillaq)
-                print("error {} inserted at {}".format(error.name, this_location))
+        rxx_gate = NoisyGate(Rxx(s*pi/2), self.location + [0], error_list)
+        rxx_gate.apply((dataq, ancillaq))
         if not cancel_data_rx:
-            Rx(-s * pi / 2) | dataq
-            this_location = self.location + [1]
-            for error in error_list:
-                if this_location == error.location:
-                    error.insert_error(dataq)
-                    print("error {} inserted at {}".format(error.name, this_location))
+            rx_gate = NoisyGate(Rx(-s*pi/2), self.location + [1], error_list)
+            rx_gate.apply([dataq])
 
     def z_type_entangling(self, dataq, ancillaq, cancel_data_rx=None, s=1, v=1, error_list=None):
         """
@@ -39,31 +44,18 @@ class EntanglingOperation():
         cancel_data_rx: If True, 'by hand' remove Rx gate to cancel with the Rx in other entangling steps
         on the same data qubit (depedent on choices of s and v)
         """
-        Ry(v * pi / 2) | dataq
-        this_location = self.location + [0]
-        for error in error_list:
-            if this_location == error.location:
-                error.insert_error(dataq)
-                print("error {} inserted at {}".format(error.name, this_location))
-        Rxx(s * pi / 2) | (dataq, ancillaq)
-        this_location = self.location + [1]
-        for error in error_list:
-            if this_location == error.location:
-                error.insert_error(dataq, ancillaq)
-                print("error {} inserted at {}".format(error.name, this_location))
+        ry_gate = NoisyGate(Ry(v*pi/2), self.location + [0], error_list)
+        ry_gate.apply([dataq])
+        rxx_gate = NoisyGate(Rxx(s*pi/2), self.location + [1], error_list)
+        rxx_gate.apply((dataq, ancillaq))
         if not cancel_data_rx:
-            Rx(-s * pi / 2) | dataq
-            this_location = self.location + [2]
-            for error in error_list:
-                if this_location == error.location:
-                    error.insert_error(dataq)
-                    print("error {} inserted at {}".format(error.name, this_location))
-        Ry(v * pi / 2) | dataq
-        this_location = self.location + [3]
-        for error in error_list:
-            if this_location == error.location:
-                error.insert_error(dataq)
-                print("error {} inserted at {}".format(error.name, this_location))
+            rx_gate = NoisyGate(Rx(-s*pi/2), self.location + [2], error_list)
+            rx_gate.apply([dataq])
+            ry_gate = NoisyGate(Ry(v * pi / 2), self.location + [3], error_list)
+            ry_gate.apply([dataq])
+        else:
+            ry_gate = NoisyGate(Ry(v * pi / 2), self.location + [2], error_list)
+            ry_gate.apply([dataq])
 
 
 class StabiliserTimestep():

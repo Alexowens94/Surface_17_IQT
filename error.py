@@ -38,6 +38,9 @@ class Error():
 
 class XCtrlError(Error):
 
+    def __init__(self, name="XCtrlError", probability=None, location=None, gates=None):
+        super().__init__(name=name, probability=probability, location=location, gates=gates)
+
     def insert_error(self, *args):
         for qubit in args:
             X | qubit
@@ -91,6 +94,9 @@ class XCtrlError(Error):
         return new_location_list
 
 class DephasingError(Error):
+
+    def __init__(self, name="DephasingError", probability=None, location=None, gates=None):
+        super().__init__(name=name, probability=probability, location=location, gates=gates)
 
     def insert_error(self, *args):
         for qubit in args:
