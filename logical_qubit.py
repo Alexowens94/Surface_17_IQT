@@ -3,64 +3,98 @@ from math import pi
 
 from projectq import MainEngine
 from projectq.backends import Simulator
-from projectq.ops import All, Measure, X, Z, H, Rx, Ry, Rxx
+from projectq.ops import All, Measure, X, Z, H, Rx, Ry, Rxx, Z, Rzz
 
 class NoisyGate():
-
-    def __init__(self, gate, location=None, error_list=[]):
+    """
+    NoisyGate objects hold the information of the location of
+    a gate, and when applied they insert the appropriate errors
+    for that gate. Depending on the circuit-scheme and the
+    error model in use.
+    """
+    def __init__(self, gate, qubits, location=None):
         self.gate = gate
+        self.qubits = qubits
         self.location = location
-        self.error_list = error_list
 
-    def apply(self, qubits):
-        self.gate | (qubits)
-        for error in self.error_list:
+    def apply(self, error_list=None):
+        self.gate | (self.qubits)
+        for error in error_list:
             if self.location == error.location:
-                error.insert_error(*qubits)
+                error.insert_error(*self.qubits)
                 print("error {} inserted at {}".format(error.name, self.location))
+
 
 class EntanglingOperation():
 
-    def __init__(self, location=None):
+    """An entangling operation entangles one data qubit and one ancilla qubit.
+    This class is not meant to be used directly but is inherited by classes such
+    as XEntanglingOp."""
+
+    def __init__(self, location=None, dataq=None, ancillaq=None, cancel_data_rx=None, s=None, v=None):
         self.location = location
+        self.dataq = dataq
+        self.ancillaq = ancillaq
+        self.cancel_data_rx = cancel_data_rx
+        self.s=s
+        self.v=v
+        self.noisy_gates = self.build_noisy_gates()
 
-    def x_type_entangling(self, dataq, ancillaq, cancel_data_rx=None, s=1, error_list=None):
-        """
-        CNOT gate, as it appears in x-stabilizer compiled to native operations. All ancilla single qubits ops
-        canceled 'by hand'.
-        cancel_data_rx: If True, 'by hand' remove Rx gate to cancel with the Rx in other entangling steps
-        on the same data qubit (depedent on choices of s and v)
-        """
-        rxx_gate = NoisyGate(Rxx(s*pi/2), self.location + [0], error_list)
-        rxx_gate.apply((dataq, ancillaq))
-        if not cancel_data_rx:
-            rx_gate = NoisyGate(Rx(-s*pi/2), self.location + [1], error_list)
-            rx_gate.apply([dataq])
+    def build_noisy_gates(self):
+        raise Exception("No build_noisy_gates function defined.")
 
-    def z_type_entangling(self, dataq, ancillaq, cancel_data_rx=None, s=1, v=1, error_list=None):
-        """
-        CNOT gate, as it appears in z-stabilizer compiled to native operations. All ancilla single qubits ops
-        canceled 'by hand'.
-        cancel_data_rx: If True, 'by hand' remove Rx gate to cancel with the Rx in other entangling steps
-        on the same data qubit (depedent on choices of s and v)
-        """
-        ry_gate = NoisyGate(Ry(v*pi/2), self.location + [0], error_list)
-        ry_gate.apply([dataq])
-        rxx_gate = NoisyGate(Rxx(s*pi/2), self.location + [1], error_list)
-        rxx_gate.apply((dataq, ancillaq))
-        if not cancel_data_rx:
-            rx_gate = NoisyGate(Rx(-s*pi/2), self.location + [2], error_list)
-            rx_gate.apply([dataq])
-            ry_gate = NoisyGate(Ry(v * pi / 2), self.location + [3], error_list)
-            ry_gate.apply([dataq])
+    def run(self, error_list=None):
+        for noisy_gate in self.noisy_gates:
+            noisy_gate.apply(error_list=error_list)
+
+
+class XTypeEntanglingOp(EntanglingOperation):
+    """A type of entangling operation which is used by the first four stabiliser steps in the MS-circuit-scheme."""
+
+    def build_noisy_gates(self):
+        noisy_gates = []
+        rxx_gate = NoisyGate(Rxx(self.s * pi / 2), [self.dataq, self.ancillaq], self.location + [0])
+        noisy_gates.append(rxx_gate)
+        if not self.cancel_data_rx:
+            rx_gate = NoisyGate(Rx(-self.s * pi / 2), [self.dataq], self.location + [1])
+            noisy_gates.append(rx_gate)
+        return noisy_gates
+
+
+class ZTypeEntanglingOp(EntanglingOperation):
+    """A type of entangling operation which is used by the last four stabiliser steps in the MS-circuit-scheme."""
+    def build_noisy_gates(self):
+        noisy_gates = []
+        ry_gate = NoisyGate(Ry(self.v*pi/2), [self.dataq], self.location + [0])
+        noisy_gates.append(ry_gate)
+        rxx_gate = NoisyGate(Rxx(self.s*pi/2), [self.dataq, self.ancillaq], self.location + [1])
+        noisy_gates.append(rxx_gate)
+        if not self.cancel_data_rx:
+            rx_gate = NoisyGate(Rx(-self.s*pi/2), [self.dataq], self.location + [2])
+            noisy_gates.append(rx_gate)
+            ry_gate = NoisyGate(Ry(self.v * pi / 2), [self.dataq], self.location + [3])
+            noisy_gates.append(ry_gate)
         else:
-            ry_gate = NoisyGate(Ry(v * pi / 2), self.location + [2], error_list)
-            ry_gate.apply([dataq])
+            ry_gate = NoisyGate(Ry(self.v * pi / 2), [self.dataq], self.location + [2])
+            noisy_gates.append(ry_gate)
+        return noisy_gates
+
+
+class CZTypeEntangling(EntanglingOperation):
+
+    def run(self, dataq, ancillaq, error_list=None):
+        rzz_gate = NoisyGate(Rzz(pi), self.location + [0], error_list)
+        rzz_gate.apply(dataq, ancillaq)
+        z_gate_a = NoisyGate(Z, self.location + [1], error_list)
+        z_gate_a.apply(ancillaq)
+        z_gate_d = NoisyGate(Z, self.location + [2], error_list)
+        z_gate_d.apply(dataq)
 
 
 class StabiliserTimestep():
+    """During one StabiliserTimestep, 3 entangling operations are done in parallel."""
 
-    def __init__(self, location=None, qu_ind=None, entangling_type="X"):
+    def __init__(self, data=None, ancilla=None, location=None, qu_ind=None, entangling_type="X", cancel_data_rx=None, error_list=None):
         """
         attr:
             self.location (e.g. [0,0]) [Syndrome measurement location, stabilizer location]
@@ -68,57 +102,67 @@ class StabiliserTimestep():
                 i.e. stabiliser_timestep_1 entangles data[4] & ancilla[1], then data[8] & ancilla[6] etc.
             self.ent_type ("X" or "Z") specifies whether this stabilizer timestep will do X-type or Z-type entangling
         """
+        self.data = data
+        self.ancilla = ancilla
         self.location = location
         self.qu_ind = qu_ind
         self.ent_type = entangling_type
+        self.cancel_data_rx = cancel_data_rx
+        self.entangling_operations = self.build_entangling_operations()
 
-    def run(self, data, ancilla, error_list, cancel_data_rx=None):
+    def build_entangling_operations(self):
         if self.ent_type == "X":
-            loc_0 = self.location + [0]
-            ent_op_0 = EntanglingOperation(location=loc_0)
-            ent_op_0.x_type_entangling(data[self.qu_ind[0][0]], ancilla[self.qu_ind[0][1]],
-                                       cancel_data_rx=cancel_data_rx[0], s=1,
-                                       error_list=error_list)
-            loc_1 = self.location + [1]
-            ent_op_1 = EntanglingOperation(location=loc_1)
-            ent_op_1.x_type_entangling(data[self.qu_ind[1][0]], ancilla[self.qu_ind[1][1]],
-                                       cancel_data_rx=cancel_data_rx[1], s=1,
-                                       error_list=error_list)
-            loc_2 = self.location + [2]
-            ent_op_2 = EntanglingOperation(location=loc_2)
-            ent_op_2.x_type_entangling(data[self.qu_ind[2][0]], ancilla[self.qu_ind[2][1]],
-                                       cancel_data_rx=cancel_data_rx[2], s=1,
-                                       error_list=error_list)
+            ent_op_0 = XTypeEntanglingOp(location=self.location + [0], dataq=self.data[self.qu_ind[0][0]], ancillaq=self.ancilla[self.qu_ind[0][1]], cancel_data_rx=self.cancel_data_rx[0],s=1)
+            ent_op_1 = XTypeEntanglingOp(location=self.location + [1], dataq=self.data[self.qu_ind[1][0]], ancillaq=self.ancilla[self.qu_ind[1][1]],
+                                       cancel_data_rx=self.cancel_data_rx[1], s=1,)
+            ent_op_2 = XTypeEntanglingOp(location=self.location + [2], dataq=self.data[self.qu_ind[2][0]], ancillaq=self.ancilla[self.qu_ind[2][1]],
+                                       cancel_data_rx=self.cancel_data_rx[2], s=1)
         elif self.ent_type == "Z":
-            loc_0 = self.location + [0]
-            ent_op_0 = EntanglingOperation(location=loc_0)
-            ent_op_0.z_type_entangling(data[self.qu_ind[0][0]], ancilla[self.qu_ind[0][1]],
-                                       cancel_data_rx=cancel_data_rx[0], s=1,
-                                       error_list=error_list)
-            loc_1 = self.location + [1]
-            ent_op_1 = EntanglingOperation(location=loc_1)
-            ent_op_1.z_type_entangling(data[self.qu_ind[1][0]], ancilla[self.qu_ind[1][1]],
-                                       cancel_data_rx=cancel_data_rx[1], s=1,
-                                       error_list=error_list)
-            loc_2 = self.location + [2]
-            ent_op_2 = EntanglingOperation(location=loc_2)
-            ent_op_2.z_type_entangling(data[self.qu_ind[2][0]], ancilla[self.qu_ind[2][1]],
-                                       cancel_data_rx=cancel_data_rx[2], s=1,
-                                       error_list=error_list)
+            ent_op_0 = ZTypeEntanglingOp(location=self.location + [0], dataq=self.data[self.qu_ind[0][0]], ancillaq=self.ancilla[self.qu_ind[0][1]],
+                                       cancel_data_rx=self.cancel_data_rx[0], s=1, v=1)
+            ent_op_1 = ZTypeEntanglingOp(location=self.location + [1], dataq=self.data[self.qu_ind[1][0]], ancillaq=self.ancilla[self.qu_ind[1][1]],
+                                       cancel_data_rx=self.cancel_data_rx[1], s=1, v=1)
+            ent_op_2 = ZTypeEntanglingOp(location=self.location + [2], dataq=self.data[self.qu_ind[2][0]], ancillaq=self.ancilla[self.qu_ind[2][1]],
+                                       cancel_data_rx=self.cancel_data_rx[2], s=1, v=1)
         else:
             raise Exception(
                 "Entangling type not recognized, should be \"X\" or \"Z\". Please check stabilizer_timestep instantiation.")
+        return [ent_op_0, ent_op_1, ent_op_2]
+
+    def run(self, error_list=None):
+        for entangling_operation in self.entangling_operations:
+            entangling_operation.run(error_list=error_list)
 
 
 class StabiliserCycle():
-    def __init__(self, location=None):
+    """During one StabiliserCycle, all the data qubits get entangled with all the appropriate ancillas."""
+    def __init__(self, location=None, data=None, ancilla=None, circuit_type="MS"):
         '''
         attr:
             location = [0]
         '''
+        self.data=data
+        self.ancilla=ancilla
         self.location = location
+        self.circuit_type = circuit_type
+        self.stabiliser_timesteps = self.build_stabiliser_timesteps(data, ancilla, self.circuit_type)
+        self.gate_locations = self.generate_gate_locations()
 
-    def run(self, data, ancilla, eng, reset=True, error_list=[]):
+    def __str__(self):
+        string = ""
+        for timestep in self.stabiliser_timesteps:
+            string+=str(timestep)
+        return string
+
+    def generate_gate_locations(self):
+        gate_locations = []
+        for timestep in self.stabiliser_timesteps:
+            for entangling_op in timestep.entangling_operations:
+                for noisy_gate in entangling_op.noisy_gates:
+                    gate_locations.append(noisy_gate.location)
+        return gate_locations
+
+    def build_stabiliser_timesteps(self, data, ancilla, circuit_type):
         if len(data) != 9:
             raise Exception('data qubit register does not correspond to the surface 17 QEC code')
         loc_0 = self.location + [0]
@@ -132,47 +176,54 @@ class StabiliserCycle():
 
         # The qubit indices needed for stabiliser_timesteps 1-8
         # i.e. stabiliser_timestep_1 entangles data[4] & ancilla[1], then data[8] & ancilla[6] etc.
-        qu_ind_1 = [[4, 1], [8, 6], [6, 4]]
-        qu_ind_2 = [[1, 1], [5, 6], [3, 4]]
-        qu_ind_3 = [[3, 1], [7, 6], [5, 3]]
-        qu_ind_4 = [[0, 1], [4, 6], [2, 3]]
-        qu_ind_5 = [[1, 2], [3, 5], [7, 7]]
-        qu_ind_6 = [[2, 2], [4, 5], [8, 7]]
-        qu_ind_7 = [[4, 2], [6, 5], [0, 0]]
-        qu_ind_8 = [[5, 2], [7, 5], [1, 0]]
+        # The same for all circuit types
+        qu_ind_0 = [[4, 1], [8, 6], [6, 4]]
+        qu_ind_1 = [[1, 1], [5, 6], [3, 4]]
+        qu_ind_2 = [[3, 1], [7, 6], [5, 3]]
+        qu_ind_3 = [[0, 1], [4, 6], [2, 3]]
+        qu_ind_4 = [[1, 2], [3, 5], [7, 7]]
+        qu_ind_5 = [[2, 2], [4, 5], [8, 7]]
+        qu_ind_6 = [[4, 2], [6, 5], [0, 0]]
+        qu_ind_7 = [[5, 2], [7, 5], [1, 0]]
 
-        cancel_data_rx = [[True, False, False],
-                          [False, True, True],
-                          [True, False, True],
-                          [False, True, False],
-                          [True, False, True],
-                          [False, True, False],
-                          [True, False, False],
-                          [False, True, True]]
+        if circuit_type == "MS":
+            # Only relevant for MS circuit type
 
-        stabiliser_timestep_1 = StabiliserTimestep(location=loc_0, qu_ind=qu_ind_1, entangling_type="X")
-        stabiliser_timestep_2 = StabiliserTimestep(location=loc_1, qu_ind=qu_ind_2, entangling_type="X")
-        stabiliser_timestep_3 = StabiliserTimestep(location=loc_2, qu_ind=qu_ind_3, entangling_type="X")
-        stabiliser_timestep_4 = StabiliserTimestep(location=loc_3, qu_ind=qu_ind_4, entangling_type="X")
-        stabiliser_timestep_5 = StabiliserTimestep(location=loc_4, qu_ind=qu_ind_5, entangling_type="Z")
-        stabiliser_timestep_6 = StabiliserTimestep(location=loc_5, qu_ind=qu_ind_6, entangling_type="Z")
-        stabiliser_timestep_7 = StabiliserTimestep(location=loc_6, qu_ind=qu_ind_7, entangling_type="Z")
-        stabiliser_timestep_8 = StabiliserTimestep(location=loc_7, qu_ind=qu_ind_8, entangling_type="Z")
+            cancel_data_rx = [[True, False, False],
+                              [False, True, True],
+                              [True, False, True],
+                              [False, True, False],
+                              [True, False, True],
+                              [False, True, False],
+                              [True, False, False],
+                              [False, True, True]]
 
-        stabiliser_timestep_1.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[0])
-        stabiliser_timestep_2.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[1])
-        stabiliser_timestep_3.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[2])
-        stabiliser_timestep_4.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[3])
-        stabiliser_timestep_5.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[4])
-        stabiliser_timestep_6.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[5])
-        stabiliser_timestep_7.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[6])
-        stabiliser_timestep_8.run(data, ancilla, error_list, cancel_data_rx=cancel_data_rx[7])
+            stabiliser_timestep_1 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_0, qu_ind=qu_ind_0, entangling_type="X", cancel_data_rx=cancel_data_rx[0])
+            stabiliser_timestep_2 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_1, qu_ind=qu_ind_1, entangling_type="X", cancel_data_rx=cancel_data_rx[1])
+            stabiliser_timestep_3 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_2, qu_ind=qu_ind_2, entangling_type="X", cancel_data_rx=cancel_data_rx[2])
+            stabiliser_timestep_4 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_3, qu_ind=qu_ind_3, entangling_type="X", cancel_data_rx=cancel_data_rx[3])
+            stabiliser_timestep_5 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_4, qu_ind=qu_ind_4, entangling_type="Z", cancel_data_rx=cancel_data_rx[4])
+            stabiliser_timestep_6 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_5, qu_ind=qu_ind_5, entangling_type="Z", cancel_data_rx=cancel_data_rx[5])
+            stabiliser_timestep_7 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_6, qu_ind=qu_ind_6, entangling_type="Z", cancel_data_rx=cancel_data_rx[6])
+            stabiliser_timestep_8 = StabiliserTimestep(data=self.data, ancilla=self.ancilla, location=loc_7, qu_ind=qu_ind_7, entangling_type="Z", cancel_data_rx=cancel_data_rx[7])
+            stabiliser_timesteps = [stabiliser_timestep_1, stabiliser_timestep_2, stabiliser_timestep_3,
+                                    stabiliser_timestep_4, stabiliser_timestep_5, stabiliser_timestep_6,
+                                    stabiliser_timestep_7, stabiliser_timestep_8]
+        if circuit_type == "CZ":
+            # DO NOTHING
+            print("Nothing done.")
+        return stabiliser_timesteps
 
-        All(Measure) | ancilla
+    def run(self, eng, reset=True, error_list=[]):
+
+        for timestep in self.stabiliser_timesteps:
+            timestep.run(error_list=error_list)
+
+        All(Measure) | self.ancilla
         eng.flush()
-        syndrome_t = [int(q) for q in ancilla]
+        syndrome_t = [int(q) for q in self.ancilla]
         if reset:
-            for a in ancilla:  # reset the ancillas to 0 at end of stab round (allow for repeat rounds)
+            for a in self.ancilla:  # reset the ancillas to 0 at end of stab round (allow for repeat rounds)
                 if int(a) == 1:
                     X | a
 
@@ -191,7 +242,6 @@ class LogicalQubit():
         self.quiescent_state = quiescent_cycle.run(self.data, self.ancilla, self.eng)
         self.leaked_q_reg = 17 * [0]
         self.correction_table = load_lookup_table("correction_table_depolarising.json")
-
 
     def measure_syndrome(self, location, error_list):
         stabiliser_cycle = StabiliserCycle(location=location)
