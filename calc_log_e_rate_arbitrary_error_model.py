@@ -1,5 +1,6 @@
 import time
 from compiled_surface_code_arbitrary_error_model import *
+import itertools
 import numpy as np
 from scipy.optimize import curve_fit
 from projectq import MainEngine
@@ -233,6 +234,31 @@ def subset_weight(params):
         num_gates, prob_error, num_error = tuple[0],tuple[1], tuple[2]
         prob = comb(num_gates, num_error)*prob_error**num_error*(1-prob_error)**(num_gates-num_error)
         weight *= prob
+    return weight
+
+def subset_weight_variable_e_rate(params):
+    ''' calculate the statistical weight of an error subset, allowing for
+        different probabilities for the same error type depending on the location
+        see https://iopscience.iop.org/article/10.1088/1367-2630/aab341 eq 20-22'''
+    weight = 1
+    for tuple in params:
+        #  difference with subset weight is that prob_error_list has a probability for every error location
+        # i.e it should be a list of length num_gates not a single probability as in subset_weight
+        num_gates, prob_error_list, num_error = tuple[0], tuple[1], tuple[2]
+        sum_prob = 0
+        for e_locations in itertools.combinations(range(num_gates), num_error):
+            prob = 1
+            #     print('error locs {}'.format(e_locations))
+            no_e_locations = list(range(num_gates))
+            for i in e_locations:
+                no_e_locations.remove(i)
+                prob *= prob_error_list[i]
+            for j in no_e_locations:
+                prob *= 1 - prob_error_list[j]
+            #     print('not error locs {}'.format(no_e_locations))
+            #     print(prob)
+            sum_prob += prob
+        weight *= sum_prob
     return weight
 
 
