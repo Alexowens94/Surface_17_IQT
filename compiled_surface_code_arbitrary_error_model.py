@@ -82,7 +82,9 @@ def logical_measurement(data, basis, eng, classical_lookup, quiescent, leaked_q_
     # ZL2 = (data_meas[1] + data_meas[4] + data_meas[7]) % 2
     # ZL3 = (data_meas[2] + data_meas[5] + data_meas[8]) % 2
     # print(data_meas)
+    #change this back
     logic_measurement = (sum(data_meas) + weight) % 2  # weight adds classical correction
+
     # if (ZL1+ZL2+ZL3) % 3 != 0:
     #     print('round {}'.format(round))
     #     print('ZLs {} {} {}'.format(ZL1, ZL2, ZL3))
@@ -108,6 +110,9 @@ def logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, e_prob
     # quiescent prepared perfectly (all errors = 0)
     errorless_dict = {}  # because of the way ive coded probabilities as dictionary with keys known apriori,
     # need to construct the 0 error version at run time to pass as an argument for perfect quiescent state prep
+    # print('e_probs {}'.format(e_probs))
+    # print(e_probs.keys())
+    # print(len(e_probs.keys()))
     for key in e_probs.keys():
         errorless_dict[key] = len(e_probs[key]) * [0]
     # quiescent = np.array(stabilizer_cycle(data, ancilla, leaked_q_reg, eng, e_model, errorless_dict, reset=True))
@@ -118,10 +123,12 @@ def logical_prep(data, basis, state, ancilla, leaked_q_reg, eng, e_model, e_prob
     return quiescent
 
 
+
 def insert_errors(gate, qubits, leaked_reg, error_model, e_model_probs, c_ind=-1, t_ind=-1, d_ind=-1, display=False,
-                  rx_ind=0, ry_ind=0, rxx_ind=0, rzz_ind=0):
-    num_gates_ms_comp = [12, 18, 24]
-    num_gates_cz_comp = [34, 24]
+                  rx_ind=0, ry_ind=0, rxx_ind=0, rzz_ind=0, stab_ind=0, sc_ind=-1):
+    num_gates_ms_comp = [12, 18, 24]  #rx ry rxx
+    num_gates_cz_comp = [34, 24]  # ry cz
+    # print('stab ind {}'.format(stab_ind))
     error_list = error_model['gates'][gate]
     for e in error_list:
         index = None
@@ -140,6 +147,9 @@ def insert_errors(gate, qubits, leaked_reg, error_model, e_model_probs, c_ind=-1
                 if e[0] == 'Zt':
                     index = num_gates_ms_comp[0] + num_gates_ms_comp[1] + num_gates_ms_comp[2] + rxx_ind
                     # print('error {} index {}'.format(e[0], index))
+        if e[1] == 'p_idle':
+            # print(sc_ind)
+            index = sc_ind
         if e[1] == 'p_X_ctrl':
             index = rx_ind
         if e[1] == 'p_XX_ctrl' or e[1] == 'p_heat':
@@ -172,14 +182,22 @@ def insert_errors(gate, qubits, leaked_reg, error_model, e_model_probs, c_ind=-1
                 index = num_gates_cz_comp[1] + rzz_ind
         # print('e1 {}'.format(e[1]))
         insert_error(error=e[0], prob=e_model_probs[e[1]], leaked_reg=leaked_reg, qubits=qubits,
-                     c_ind=c_ind, t_ind=t_ind, d_ind=d_ind, index=index)
+                     c_ind=c_ind, t_ind=t_ind, d_ind=d_ind, index=index, stab_ind=stab_ind)
 
 
-def insert_error(error, prob, leaked_reg, qubits, c_ind, t_ind, d_ind, index=0):
-    # print('{} location index {}'.format(error, index))
+def insert_error(error, prob, leaked_reg, qubits, c_ind, t_ind, d_ind, index=0, stab_ind=0):
+    # print('stab ind {}'.format(stab_ind))
     # print('prob {}'.format(prob))
+    if stab_ind == 1:
+        # print('original index {}'.format(index))
+        index += int(len(prob)/2)  # if in the second stab. cycle, indices range over the second half of prob_list
+        # print('new index {}'.format(index))
+    # print(len(prob))
+    # print('prob {}'.format(prob))
+    # print('index {}'.format(index))
     if random.random() < prob[index]:
-        # print(error, index)
+        # print('{} location index {}'.format(error, index))
+        # print(qubits)
         if error == 'X':
             X | qubits
         if error == 'Y':
@@ -188,6 +206,7 @@ def insert_error(error, prob, leaked_reg, qubits, c_ind, t_ind, d_ind, index=0):
             Z | qubits
         if error == 'Zc':
             Z | qubits[0]
+            # print('q {}'.format(qubits[0]))
         if error == 'Zt':
             Z | qubits[1]
         if error == 'XX':
@@ -269,14 +288,14 @@ def insert_leakage(index, leaked_reg):
     # print('leakage at {}'.format(index))
 
 
-def x_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0,
+def x_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, stab_ind, rx_ind=0, ry_ind=0, rxx_ind=0,
                       d_leak_ind=0, a_leak_ind=0, cancel_data_rx=False, s=1):
     if leaked_reg[d_leak_ind] == 0 and leaked_reg[a_leak_ind] == 0:
         Rxx(s * pi / 2) | (dataq, ancillaq)
         insert_errors(gate='Rxx', qubits=[dataq, ancillaq], leaked_reg=leaked_reg,
                       error_model=error_model, e_model_probs=e_model_probs,
                       c_ind=a_leak_ind, t_ind=d_leak_ind,
-                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind, stab_ind=stab_ind)
 
     # else:
     #     print('leak data{} ancilla{}'.format(d_leak_ind, a_leak_ind))
@@ -285,19 +304,19 @@ def x_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, r
         Rx(-s * pi / 2) | dataq
         insert_errors(gate='Rx', qubits=dataq, leaked_reg=leaked_reg,
                       error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind,
-                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind, stab_ind=stab_ind)
         rx_ind += 1
     return rx_ind, rxx_ind
 
 
-def z_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0,
+def z_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, stab_ind, rx_ind=0, ry_ind=0, rxx_ind=0,
                       d_leak_ind=0, a_leak_ind=0, cancel_data_rx=False, cancel_ry1=False, cancel_ry2=False, s=1, v=1):
     if not cancel_ry1:
         Ry(v * pi / 2) | dataq
 
         insert_errors(gate='Ry', qubits=dataq, leaked_reg=leaked_reg,
                       error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind,
-                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind, stab_ind=stab_ind)
         ry_ind += 1
 
     if leaked_reg[d_leak_ind] == 0 and leaked_reg[a_leak_ind] == 0:
@@ -305,7 +324,7 @@ def z_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, r
         insert_errors(gate='Rxx', qubits=[dataq, ancillaq], leaked_reg=leaked_reg,
                       error_model=error_model, e_model_probs=e_model_probs,
                       c_ind=d_leak_ind, t_ind=a_leak_ind,
-                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind, stab_ind=stab_ind)
 
     else:
         print('leak data{} ancilla{}'.format(d_leak_ind, a_leak_ind))
@@ -314,13 +333,13 @@ def z_type_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, r
         Rx(-s * pi / 2) | dataq
         insert_errors(gate='Rx', qubits=dataq, leaked_reg=leaked_reg,
                       error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind,
-                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind, stab_ind=stab_ind)
         rx_ind += 1
     if not cancel_ry2:
         Ry(-v * pi / 2) | dataq
         insert_errors(gate='Ry', qubits=dataq, leaked_reg=leaked_reg,
                       error_model=error_model, e_model_probs=e_model_probs, d_ind=d_leak_ind,
-                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+                      rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind, stab_ind=stab_ind)
         ry_ind += 1
     return rx_ind, ry_ind, rxx_ind
 
@@ -343,18 +362,18 @@ def cz_entangling(dataq, ancillaq, leaked_reg, error_model, e_model_probs, rzz_i
     return rzz_ind
 
 
-def stabiliser_timestep_1(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, xx_inc = x_type_entangling(data[4], ancilla[1], leaked_reg, error_model, e_model_probs,
+def stabiliser_timestep_1(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0, rx_ind=0, ry_ind=0, rxx_ind=0):
+    x_inc, xx_inc = x_type_entangling(data[4], ancilla[1], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=4, a_leak_ind=1 + 9, cancel_data_rx=True, s=1)
     # print('stab1 ent1 {} {}'.format(x_inc,xx_inc))
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[8], ancilla[6], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[8], ancilla[6], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=8, a_leak_ind=6 + 9, s=1)
     # print('stab1 ent2 {} {}'.format(x_inc, xx_inc))
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[6], ancilla[4], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[6], ancilla[4], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=6, a_leak_ind=4 + 9, s=1)
     # print('stab1 ent3 {} {}'.format(x_inc, xx_inc))
     rx_ind = x_inc
@@ -473,17 +492,17 @@ def cz_stabiliser_timestep_8(data, ancilla, leaked_reg, error_model, e_model_pro
     return rzz_ind
 
 
-def stabiliser_timestep_2(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, xx_inc = x_type_entangling(data[1], ancilla[1], leaked_reg, error_model, e_model_probs,
+def stabiliser_timestep_2(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0, rx_ind=0, ry_ind=0, rxx_ind=0):
+    x_inc, xx_inc = x_type_entangling(data[1], ancilla[1], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=1, a_leak_ind=1 + 9, s=-1)
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[5], ancilla[6], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[5], ancilla[6], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=5, a_leak_ind=6 + 9, cancel_data_rx=True,
                                       s=-1)
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[3], ancilla[4], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[3], ancilla[4], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=3, a_leak_ind=4 + 9, cancel_data_rx=True,
                                       s=-1)
     rx_ind = x_inc
@@ -491,54 +510,60 @@ def stabiliser_timestep_2(data, ancilla, leaked_reg, error_model, e_model_probs,
     return rx_ind, rxx_ind
 
 
-def stabiliser_timestep_3(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, xx_inc = x_type_entangling(data[3], ancilla[1], leaked_reg, error_model, e_model_probs,
+def stabiliser_timestep_3(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0,
+                          rx_ind=0, ry_ind=0, rxx_ind=0):
+    x_inc, xx_inc = x_type_entangling(data[3], ancilla[1], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=3, a_leak_ind=1 + 9, cancel_data_rx=True, s=1)
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[7], ancilla[6], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[7], ancilla[6], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=7, a_leak_ind=6 + 9, s=1)
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[5], ancilla[3], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[5], ancilla[3], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=5, a_leak_ind=3 + 9, cancel_data_rx=True, s=1)
     rx_ind = x_inc
     rxx_ind = xx_inc
     return rx_ind, rxx_ind
 
 
-def stabiliser_timestep_4(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, xx_inc = x_type_entangling(data[0], ancilla[1], leaked_reg, error_model, e_model_probs,
+def stabiliser_timestep_4(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0,
+                          rx_ind=0, ry_ind=0, rxx_ind=0):
+    x_inc, xx_inc = x_type_entangling(data[0], ancilla[1], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=0, a_leak_ind=1 + 9, s=-1)
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[4], ancilla[6], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[4], ancilla[6], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=4, a_leak_ind=6 + 9, cancel_data_rx=True,
                                       s=-1)
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = x_type_entangling(data[2], ancilla[3], leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = x_type_entangling(data[2], ancilla[3], leaked_reg, error_model, e_model_probs, stab_ind,
                                       rx_ind, ry_ind, rxx_ind, d_leak_ind=2, a_leak_ind=3 + 9, s=-1)
     rx_ind = x_inc
     rxx_ind = xx_inc
     return rx_ind, rxx_ind
 
 
-def stabiliser_timestep_5(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, y_inc, xx_inc = z_type_entangling(data[1], ancilla[2], leaked_reg, error_model, e_model_probs, rx_ind,
-                                             ry_ind, rxx_ind,
+def stabiliser_timestep_5(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0,
+                          rx_ind=0, ry_ind=0, rxx_ind=0):
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[1], ancilla[2], leaked_reg, error_model, e_model_probs, stab_ind,
+                                             rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=1, a_leak_ind=2 + 9, cancel_data_rx=True, cancel_ry2=True, v=1,
                                              s=1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[3], ancilla[5], leaked_reg, error_model, e_model_probs, rx_ind,
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[3], ancilla[5], leaked_reg, error_model, e_model_probs, stab_ind, rx_ind,
                                              ry_ind, rxx_ind,
                                              d_leak_ind=1, a_leak_ind=2 + 9, v=1, s=1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[7], ancilla[7], leaked_reg, error_model, e_model_probs, rx_ind,
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[7], ancilla[7], leaked_reg, error_model, e_model_probs, stab_ind, rx_ind,
                                              ry_ind, rxx_ind,
                                              d_leak_ind=7, a_leak_ind=7 + 9, cancel_data_rx=True, cancel_ry2=True, v=1,
                                              s=1)
@@ -548,21 +573,23 @@ def stabiliser_timestep_5(data, ancilla, leaked_reg, error_model, e_model_probs,
     return rx_ind, ry_ind, rxx_ind
 
 
-def stabiliser_timestep_6(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, y_inc, xx_inc = z_type_entangling(data[2], ancilla[2], leaked_reg, error_model, e_model_probs, rx_ind,
+def stabiliser_timestep_6(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0,
+                          rx_ind=0, ry_ind=0, rxx_ind=0):
+    x_inc, y_inc, xx_inc = z_type_entangling(data[2], ancilla[2], leaked_reg, error_model, e_model_probs, stab_ind, rx_ind,
                                              ry_ind, rxx_ind,
                                              d_leak_ind=2, a_leak_ind=2 + 9, v=1, s=-1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[4], ancilla[5], leaked_reg, error_model, e_model_probs, rx_ind,
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[4], ancilla[5], leaked_reg, error_model, e_model_probs, stab_ind, rx_ind,
                                              ry_ind, rxx_ind,
                                              d_leak_ind=4, a_leak_ind=5 + 9, cancel_data_rx=True, cancel_ry2=True, v=1,
                                              s=-1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[8], ancilla[7], leaked_reg, error_model, e_model_probs, rx_ind,
+    x_inc, y_inc, xx_inc = z_type_entangling(data[8], ancilla[7], leaked_reg, error_model, e_model_probs, stab_ind, rx_ind,
                                              ry_ind, rxx_ind,
                                              d_leak_ind=8, a_leak_ind=7 + 9, v=1, s=-1)
     rx_ind = x_inc
@@ -571,21 +598,23 @@ def stabiliser_timestep_6(data, ancilla, leaked_reg, error_model, e_model_probs,
     return rx_ind, ry_ind, rxx_ind
 
 
-def stabiliser_timestep_7(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, y_inc, xx_inc = z_type_entangling(data[4], ancilla[2], leaked_reg, error_model, e_model_probs,
+def stabiliser_timestep_7(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0,
+                          rx_ind=0, ry_ind=0, rxx_ind=0):
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[4], ancilla[2], leaked_reg, error_model, e_model_probs, stab_ind,
                                              rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=4, a_leak_ind=2 + 9, cancel_data_rx=True, cancel_ry1=True, v=1,
                                              s=1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[6], ancilla[5], leaked_reg, error_model, e_model_probs,
+    x_inc, y_inc, xx_inc = z_type_entangling(data[6], ancilla[5], leaked_reg, error_model, e_model_probs, stab_ind,
                                              rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=6, a_leak_ind=5 + 9, v=1, s=1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[0], ancilla[0], leaked_reg, error_model, e_model_probs,
+    x_inc, y_inc, xx_inc = z_type_entangling(data[0], ancilla[0], leaked_reg, error_model, e_model_probs, stab_ind,
                                              rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=0, a_leak_ind=0 + 9, v=1, s=1)
     rx_ind = x_inc
@@ -594,21 +623,24 @@ def stabiliser_timestep_7(data, ancilla, leaked_reg, error_model, e_model_probs,
     return rx_ind, ry_ind, rxx_ind
 
 
-def stabiliser_timestep_8(data, ancilla, leaked_reg, error_model, e_model_probs, rx_ind=0, ry_ind=0, rxx_ind=0):
-    x_inc, y_inc, xx_inc = z_type_entangling(data[5], ancilla[2], leaked_reg, error_model, e_model_probs,
+def stabiliser_timestep_8(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind=0,
+                          rx_ind=0, ry_ind=0, rxx_ind=0):
+    x_inc, y_inc, xx_inc = z_type_entangling(data[5], ancilla[2], leaked_reg, error_model, e_model_probs, stab_ind,
                                              rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=5, a_leak_ind=2 + 9, v=1, s=-1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[7], ancilla[5], leaked_reg, error_model, e_model_probs,
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[7], ancilla[5], leaked_reg, error_model, e_model_probs, stab_ind,
                                              rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=7, a_leak_ind=5 + 9, cancel_data_rx=True, cancel_ry1=True, v=1,
                                              s=-1)
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = z_type_entangling(data[1], ancilla[0], leaked_reg, error_model, e_model_probs,
+    # print('rxx {}'.format(rxx_ind))
+    x_inc, y_inc, xx_inc = z_type_entangling(data[1], ancilla[0], leaked_reg, error_model, e_model_probs, stab_ind,
                                              rx_ind, ry_ind, rxx_ind,
                                              d_leak_ind=1, a_leak_ind=0 + 9, cancel_data_rx=True, cancel_ry1=True, v=1,
                                              s=-1)
@@ -727,7 +759,19 @@ def cz_z_stabilizers(data, ancilla, leaked_reg, error_model, e_model_probs, rzz_
     return rzz_ind
 
 
-def stabilizer_cycle_error_index(data, ancilla, leaked_reg, eng, error_model, e_model_probs, reset=True):
+def sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind):
+    # could add/subtract heat in these idle operations but currently accounting for mode occupation in error rates
+    sc_ind = sc_ind * (len(data)+len(ancilla))
+    for index in range(len(data)):
+        # print('index {}, sc_ind {}'.format(index, sc_ind))
+        insert_errors("Idle", data[index], leaked_reg, error_model, e_model_probs, sc_ind=sc_ind)
+        sc_ind += 1
+    for index in range(len(ancilla)):
+        # print('index {}, sc_ind {}'.format(index, sc_ind))
+        insert_errors("Idle", ancilla[index], leaked_reg, error_model, e_model_probs, sc_ind=sc_ind)
+        sc_ind += 1
+def stabilizer_cycle_error_index(data, ancilla, leaked_reg, eng, error_model, e_model_probs, reset=True,
+                                 stab_ind=0, cooling=False):
     '''
     :param data: list of the data qubits
     :param ancilla: list of the ancilla qubits
@@ -741,47 +785,64 @@ def stabilizer_cycle_error_index(data, ancilla, leaked_reg, eng, error_model, e_
     rx_ind = 0
     ry_ind = 0
     rxx_ind = 0
-    x_inc, xx_inc = stabiliser_timestep_1(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = stabiliser_timestep_1(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind,
                                           rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=0)
     # print("1")
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = stabiliser_timestep_2(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = stabiliser_timestep_2(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind,
                                           rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=1)
     # print("2")
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = stabiliser_timestep_3(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = stabiliser_timestep_3(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind,
                                           rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=2)
     # print("3 ryind {}".format(ry_ind))
 
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, xx_inc = stabiliser_timestep_4(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, xx_inc = stabiliser_timestep_4(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind,
                                           rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=3)
     # print("4 ryind {}".format(ry_ind))
     rx_ind = x_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = stabiliser_timestep_5(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, y_inc, xx_inc = stabiliser_timestep_5(data, ancilla, leaked_reg, error_model, e_model_probs, stab_ind,
                                                  rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=4)
     # print("5")
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = stabiliser_timestep_6(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, y_inc, xx_inc = stabiliser_timestep_6(data, ancilla, leaked_reg, error_model, e_model_probs,stab_ind,
                                                  rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=5)
     # print("6")
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    x_inc, y_inc, xx_inc = stabiliser_timestep_7(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, y_inc, xx_inc = stabiliser_timestep_7(data, ancilla, leaked_reg, error_model, e_model_probs,stab_ind,
                                                  rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    if cooling:
+        sympathetic_cooling(data, ancilla, error_model, e_model_probs, leaked_reg, sc_ind=6)
     # print("7")
     rx_ind = x_inc
     ry_ind = y_inc
     rxx_ind = xx_inc
-    stabiliser_timestep_8(data, ancilla, leaked_reg, error_model, e_model_probs,
+    x_inc, y_inc, xx_inc = stabiliser_timestep_8(data, ancilla, leaked_reg, error_model, e_model_probs,stab_ind,
                           rx_ind=rx_ind, ry_ind=ry_ind, rxx_ind=rxx_ind)
+    rx_ind = x_inc
+    ry_ind = y_inc
+    rxx_ind = xx_inc
     # print("8")
 
     All(Measure) | ancilla
