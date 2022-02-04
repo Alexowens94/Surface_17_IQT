@@ -39,6 +39,20 @@
                         ["Lt", "p_leak", "target Qbit leakage error"]]
                        }
               },
+    "Dress_cooling" : {
+            "probabilities" : ["p_X_ctrl", "p_Y_ctrl", "p_XX_ctrl" , "p_leak", "p_heat", "p_idle"],
+            "gates" : {
+                "Rx": [["X", "p_X_ctrl", "control error"],
+                        ["L","p_leak", "leakage error"] ],
+                "Ry": [["Y", "p_Y_ctrl", "control error"],
+                        ["L","p_leak", "leakage error"] ],
+                "Rxx": [["XX", "p_XX_ctrl", "2Qbit control error"],
+                        ["XX", "p_heat", "2Qbit heating error"],
+                        ["Lc", "p_leak", "control Qbit leakage error"],
+                        ["Lt", "p_leak", "target Qbit leakage error"]],
+                "Idle": [["Z","p_idle", "dephasing"] ]
+                       }
+                        },
   "depolarising_model" : {
             "probabilities" : ["px","py","pz","p"],
             "gates" : {

@@ -6,7 +6,7 @@ from compiled_surface_code_arbitrary_error_model import *
 correction_table = load_lookup_table("correction_table_depolarising.json")
 bitflip_table = load_lookup_table("correction_table_classical_bitflip.json")
 runs = 1000
-model = 'PDD_cooling'
+model = 'Dress_cooling'
 filename_s1_impsamp = "ImpSamp_1000_syndrome_process_s1subsets_{}".format(model)
 filename_s2_impsamp = "ImpSamp_1000_syndrome_process_s2subsets_{}".format(model)
 subsets_file_s1 = "incremental_subsets_s1_{}".format(model) # sim would end at s1
@@ -36,21 +36,21 @@ prob_lists_both_rounds = [[prob_list[0]],
 # Generate significant subsets (if already generated can comment out below)
 #########################################
 # generate significant subsets for runs with 1 round of stabilizer measurement
-t_begin = time.perf_counter()
-results_dict = calculate_significant_subsets_incrementally(locations, prob_lists, cutoff_weight=1e-6)
-t_end = time.perf_counter()
-print('time taken to calc s1 significant subsets {}'.format(t_end-t_begin))
-with open("imp_samp\\"+subsets_file_s1+".json", 'w') as file:
-    json.dump(results_dict, file)
-# generate significant subsets for runs with 2 rounds of stabilizer measurement
-# (not accounting for how likely the error subset is to result in stopping after round 1)
-t_begin = time.perf_counter()
-results_dict = calculate_significant_subsets_incrementally(locations_both_rounds, prob_lists_both_rounds,
-                                                           cutoff_weight=1e-6)
-t_end = time.perf_counter()
-print('time taken to calc s1 and s2 significant subsets {}'.format(t_end-t_begin))
-with open("imp_samp\\"+subsets_file_s1_and_s2+".json", 'w') as file:
-    json.dump(results_dict, file)
+# t_begin = time.perf_counter()
+# results_dict = calculate_significant_subsets_incrementally(locations, prob_lists, cutoff_weight=1e-6)
+# t_end = time.perf_counter()
+# print('time taken to calc s1 significant subsets {}'.format(t_end-t_begin))
+# with open("imp_samp\\"+subsets_file_s1+".json", 'w') as file:
+#     json.dump(results_dict, file)
+# # generate significant subsets for runs with 2 rounds of stabilizer measurement
+# # (not accounting for how likely the error subset is to result in stopping after round 1)
+# t_begin = time.perf_counter()
+# results_dict = calculate_significant_subsets_incrementally(locations_both_rounds, prob_lists_both_rounds,
+#                                                            cutoff_weight=1e-6)
+# t_end = time.perf_counter()
+# print('time taken to calc s1 and s2 significant subsets {}'.format(t_end-t_begin))
+# with open("imp_samp\\"+subsets_file_s1_and_s2+".json", 'w') as file:
+#     json.dump(results_dict, file)
 #########################################
 # Importance Sampling
 # run 1 round of error correction, inserting a specified number of each type of error, in random locations
@@ -72,21 +72,21 @@ with open("imp_samp\\"+subsets_file_s1_and_s2+".json") as file:
     prob_lists_both_rounds = data['probabilities']
 # importance sampling simulate s1 circuit
 ################################################################
-for i, eset in enumerate(s1_significant_subsets):
-    print('sim number {}'.format(i))
-    print("calc log e rate of {} in S1".format(eset))
-    eset_log_e_rate, eset_s2_rate, fails, s2count = s1_calculate_log_e_rate_error_subset(runs, correction_table, model, eset, locations,
-                                                        bitflip_table, prob_lists, cz_comp, cooling=cooling)
-    key = str(eset)
-    s1_log_e_rate_dict[key] = eset_log_e_rate
-    s2_rate_dict[key] = eset_s2_rate
-    fail_count_dict[key] = fails
-    s2_count_dict[key] = s2count
-    esets.append(key)
-s1_results = {'s1_log_e_rate_dict': s1_log_e_rate_dict, 's2_rate_dict': s2_rate_dict,
-              'failcount': fail_count_dict, 's2count': s2_count_dict}
-with open("imp_samp\\"+filename_s1_impsamp+".json", 'w') as file:
-    json.dump(s1_results, file)
+# for i, eset in enumerate(s1_significant_subsets):
+#     print('sim number {}'.format(i))
+#     print("calc log e rate of {} in S1".format(eset))
+#     eset_log_e_rate, eset_s2_rate, fails, s2count = s1_calculate_log_e_rate_error_subset(runs, correction_table, model, eset, locations,
+#                                                         bitflip_table, prob_lists, cz_comp, cooling=cooling)
+#     key = str(eset)
+#     s1_log_e_rate_dict[key] = eset_log_e_rate
+#     s2_rate_dict[key] = eset_s2_rate
+#     fail_count_dict[key] = fails
+#     s2_count_dict[key] = s2count
+#     esets.append(key)
+# s1_results = {'s1_log_e_rate_dict': s1_log_e_rate_dict, 's2_rate_dict': s2_rate_dict,
+#               'failcount': fail_count_dict, 's2count': s2_count_dict}
+# with open("imp_samp\\"+filename_s1_impsamp+".json", 'w') as file:
+#     json.dump(s1_results, file)
 ################################################################################
 # load s1 importance sampling results
 with open("imp_samp\\"+filename_s1_impsamp+".json", 'r') as file:
@@ -95,7 +95,7 @@ with open("imp_samp\\"+filename_s1_impsamp+".json", 'r') as file:
 # calculate significant subsets for s2 simulations from the s2 rates the impsamp for s1 spits out
 t1 = time.perf_counter()
 print('starting s2 sig sets calc')
-s2res = s2sim_calculate_significant_subsets_incrementally(locations, prob_lists, s2_rate_dict, s1_significant_subsets,
+s2res = s2sim_calculate_significant_subsets_incrementally(locations, prob_lists, prob_lists, s2_rate_dict, s1_significant_subsets,
                                                           significant_subsets_s1_and_s2)
 t2 = time.perf_counter()
 print('time taken to calc s2 sig subsets{}'.format(t2-t1))
