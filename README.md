@@ -1,6 +1,8 @@
 # Surface_17
 Surface 17 sims for ion trapping quantum computing architecture 
 
+Requires ProjectQ (installed with it's fast C++ circuit simulator) 
+(get Visual C++ Build Tools and the Microsoft Windows SDK prior to doing installing projectQ via pip)
 *** This project has grown horrendously untidy - we are in the process of refactoring an object oriented version to facilitate the addition of complex features *** 
 
 This repo is for simulating quantum error correction, specifically the performance of the 17 qubit surface code under a variety of experimentally motivated error models. 
@@ -28,7 +30,7 @@ https://arxiv.org/abs/2111.01913 is a good resource for a general laser-free gat
 https://journals-aps-org.ezproxy.sussex.ac.uk/prl/pdf/10.1103/PhysRevLett.111.140501 and https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.117.220501
 outline the 'dressed state' dynamically decoupled qubit prominent in the simulationss along with some consideration of error sources. 
 
-*********Importance Sampling******************
+*********Importance Sampling*********
 To make use of importance sampling with the chosen syndrome processing rules requires some ammendment to the protocol to account for the fact the circuit length
 isn't known a priori. 
 We have to simulate the error rate GIVEN the code would stop after a single syndrome measurement and the error rate given it would run for 2 syndrome measurements,
@@ -40,5 +42,5 @@ which we determine during the simulation of s1 (i.e. P( (n_errors AND s2) ) can'
 and requires some information from the simulations)
 
 Example outputs:
-[My image](https://github.com/QECsims/Surface_17/pl_cool.jpg)
+[My image](https://github.com/QECsims/Surface_17/img/pl_cool.png)
 
