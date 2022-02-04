@@ -22,6 +22,13 @@ Example outputs:
 [Pl_cooling](https://github.com/QECsims/Surface_17/blob/master/img/pl_cool.png)
 [Dressed_qubit_vary_dephase_rate](https://github.com/QECsims/Surface_17/blob/master/img/dress_leaked_reg_with_reset_every_run.png)
 
+The script importance_sampling_syndrome_processing.py provides an example running through 
+1) calculating significant error subsets requiring simulation
+2) simulating logical error rates given an error subset by randomly placing fixed number of errors according to error 
+   model
+
+plotting_imp_samp.py combines subset weight data with logical error rates to produce plots of the total error rate 
+as in the above examples
 
 The small circuit size allows for simulating 'advanced' error models including correlated and coherent errors, error rates varying in time/space, as well as 
 leakage/loss from the code space. So far the models have been extended to include different dynamical decoupling schemes, different means of addressing leakage, 
