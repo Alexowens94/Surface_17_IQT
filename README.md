@@ -3,6 +3,7 @@ Surface 17 sims for ion trapping quantum computing architecture
 
 Requires ProjectQ (installed with it's fast C++ circuit simulator) 
 (get Visual C++ Build Tools and the Microsoft Windows SDK prior to doing installing projectQ via pip)
+
 *** This project has grown horrendously untidy - we are in the process of refactoring an object oriented version to facilitate the addition of complex features *** 
 
 This repo is for simulating quantum error correction, specifically the performance of the 17 qubit surface code under a variety of experimentally motivated error models. 
@@ -13,6 +14,14 @@ modes heat up during an algorithm and if they aren't cooled intermitently the ga
 operations, and recooling frequently will result in much longer algorithm runtimes (see https://arxiv.org/pdf/2003.01293.pdf), 
 providing more opportunity for idle qubits to dephase. Simulating both scenarios under realistic environmental noise levels can indicate the regimes in which cooling
 should be advantageous or detrimental to circuit performance. 
+
+Example outputs:
+[Logical_qubit_decay](https://github.com/QECsims/Surface_17/blob/master/img/PDD_deph=0_p=0.01.png)
+[Error_subsets](https://github.com/QECsims/Surface_17/blob/master/img/contributions_to_total_error_xyxx.png)
+[Pl_no_cooling](https://github.com/QECsims/Surface_17/blob/master/img/pl_PDD_linear_heat.png)
+[Pl_cooling](https://github.com/QECsims/Surface_17/blob/master/img/pl_cool.png)
+[Dressed_qubit_vary_dephase_rate](https://github.com/QECsims/Surface_17/blob/master/img/dress_leaked_reg_with_reset_every_run.png)
+
 
 The small circuit size allows for simulating 'advanced' error models including correlated and coherent errors, error rates varying in time/space, as well as 
 leakage/loss from the code space. So far the models have been extended to include different dynamical decoupling schemes, different means of addressing leakage, 
@@ -25,8 +34,9 @@ The importance sampling method is explained further in: https://journals.aps.org
 The decoder employed uses a lookup table generated in generate_lookup_table.py and minimal syndrome processing rules
 as described in https://iopscience.iop.org/article/10.1088/1367-2630/aab341/pdf (decoder is modular, and can be replaced with a differently weighted variant)
 
-To discuss the noise modelling that underpins the error models please reach me on A.Owens@sussex.ac.uk 
-https://arxiv.org/abs/2111.01913 is a good resource for a general laser-free gate based error model
+To discuss the repo reach me on A.Owens@sussex.ac.uk 
+I don't intend to make the noise modelling underpinning the error models public, but happy to discuss via email.
+https://arxiv.org/abs/2111.01913 is a good resource for a general laser-free *gate based* error model
 https://journals-aps-org.ezproxy.sussex.ac.uk/prl/pdf/10.1103/PhysRevLett.111.140501 and https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.117.220501
 outline the 'dressed state' dynamically decoupled qubit prominent in the simulationss along with some consideration of error sources. 
 
@@ -40,7 +50,4 @@ where n_errors is a list of indicies indicating the total number of errors of ea
 1 or 2 syndrome measurements. It is worth noting P( (n_errors AND s2) )  requires data about the probability of reaching s2 given a fixed number of errors in s1, 
 which we determine during the simulation of s1 (i.e. P( (n_errors AND s2) ) can't be calculated purely combinatorically like P( (n_errors AND s1) ) can,
 and requires some information from the simulations)
-
-Example outputs:
-[My image](https://github.com/QECsims/Surface_17/img/pl_cool.png)
 
